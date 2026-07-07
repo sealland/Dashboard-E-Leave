@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Executive Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/landing.css" />
+</head>
+<body>
+  {% include "partials/nav.html" %}
+
+  <div class="layout landing-layout">
+    <header class="header landing-header">
+      <div>
+        <p class="eyebrow">Executive Dashboard</p>
+        <h1>ศูนย์รวม Dashboard</h1>
+        <p class="subtitle">เลือกระบบที่ต้องการใช้งาน</p>
+      </div>
+    </header>
+
+    <section class="landing-list" aria-label="รายการ Dashboard">
+      {% for item in dashboards %}
+      {% if item.url and not item.coming_soon %}
+      <a class="landing-item card landing-item--active" href="{{ item.url }}">
+      {% else %}
+      <article class="landing-item card landing-item--soon">
+      {% endif %}
+        <div class="landing-item-icon landing-item-icon--{{ item.icon }}" aria-hidden="true">
+          {% if item.icon == "leave" %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <path d="M16 2v4M8 2v4M3 10h18"/>
+          </svg>
+          {% elif item.icon == "overtime" %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7v5l3 2"/>
+          </svg>
+          {% else %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <path d="M4 19h16M6 16l3-5 4 4 5-8"/>
+          </svg>
+          {% endif %}
+        </div>
+        <div class="landing-item-body">
+          <div class="landing-item-head">
+            <h2 class="landing-item-title">{{ item.title }}</h2>
+            {% if item.coming_soon %}
+              <span class="landing-item-badge">เร็วๆ นี้</span>
+            {% else %}
+              <span class="landing-item-badge landing-item-badge--ready">พร้อมใช้งาน</span>
+            {% endif %}
+          </div>
+          <p class="landing-item-desc">{{ item.description }}</p>
+        </div>
+        {% if item.url and not item.coming_soon %}
+          <span class="landing-item-action btn btn-primary">เปิด</span>
+        {% else %}
+          <span class="landing-item-action btn btn-ghost landing-item-action--disabled">รอเปิดใช้</span>
+        {% endif %}
+      {% if item.url and not item.coming_soon %}
+      </a>
+      {% else %}
+      </article>
+      {% endif %}
+      {% endfor %}
+    </section>
+  </div>
+</body>
+</html>

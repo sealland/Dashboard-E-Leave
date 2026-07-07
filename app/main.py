@@ -1,4 +1,4 @@
-"""HR Approval Tracking Dashboard — FastAPI application."""
+"""Executive Dashboard hub — FastAPI application."""
 
 from __future__ import annotations
 
@@ -10,18 +10,34 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.dashboards import DASHBOARDS
 from app.queries import get_alerts, get_by_dept, get_by_type, get_filter_options, get_records, get_summary
 
 APP_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="HR Approval Dashboard", version="1.0.0")
+app = FastAPI(title="Executive Dashboard", version="1.0.0")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 
+def _nav_context(active_dashboard: str | None = None) -> dict:
+    return {"dashboards": DASHBOARDS, "active_dashboard": active_dashboard}
+
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+async def landing(request: Request):
+    return templates.TemplateResponse(
+        "landing.html",
+        {"request": request, **_nav_context()},
+    )
+
+
+@app.get("/dashboard/e-leave", response_class=HTMLResponse)
+async def dashboard_e_leave(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, **_nav_context("e-leave")},
+    )
 
 
 @app.get("/api/summary")

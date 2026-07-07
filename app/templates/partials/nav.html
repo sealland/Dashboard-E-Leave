@@ -1,0 +1,18 @@
+<nav class="site-nav" aria-label="เมนู Dashboard">
+  <a class="site-nav-brand" href="/">
+    <span class="site-nav-brand-mark" aria-hidden="true">D</span>
+    <span class="site-nav-brand-text">Executive Dashboard</span>
+  </a>
+  <div class="site-nav-links">
+    {% for item in dashboards %}
+      {% if item.url and not item.coming_soon %}
+        <a
+          class="site-nav-link{% if active_dashboard == item.id %} is-active{% endif %}"
+          href="{{ item.url }}"
+        >{{ item.title }}</a>
+      {% else %}
+        <span class="site-nav-link is-disabled" title="เร็วๆ นี้">{{ item.title }}</span>
+      {% endif %}
+    {% endfor %}
+  </div>
+</nav>
