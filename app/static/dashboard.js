@@ -7,6 +7,18 @@ const state = {
   panelOpen: false,
 };
 
+function loadDashboardConfig() {
+  const el = document.getElementById("dashboard-config");
+  if (!el) return {};
+  try {
+    return JSON.parse(el.textContent || "{}");
+  } catch {
+    return {};
+  }
+}
+
+const DASHBOARD = loadDashboardConfig();
+
 const DAYS_OVERDUE_THRESHOLDS = { warn: 3, crit: 7 };
 
 const ALERT_TOOLTIPS = {
@@ -44,7 +56,7 @@ function toInputDate(date) {
   return `${y}-${m}-${d}`;
 }
 
-const DATE_RANGE_STORAGE_KEY = "hr_approve_date_range";
+const DATE_RANGE_STORAGE_KEY = DASHBOARD.dateStorageKey || "hr_approve_date_range";
 
 function saveDateRange() {
   const from = $("#filter-date-from").value;
@@ -119,7 +131,7 @@ function params() {
   if (dateFrom) q.set("date_from", dateFrom);
   if (dateTo) q.set("date_to", dateTo);
   const dept = $("#filter-dept").value;
-  const wbdt = $("#filter-type").value;
+  const wbdt = DASHBOARD.wbdt ?? $("#filter-type").value;
   const stage = $("#filter-stage").value;
   const active = $("#filter-active").value;
   const search = $("#filter-search").value.trim();
@@ -603,6 +615,9 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  if (DASHBOARD.wbdt != null) {
+    $("#filter-type").value = String(DASHBOARD.wbdt);
+  }
   setDefaultDateRange();
   if ("Notification" in window && Notification.permission === "granted") {
     state.notifyEnabled = true;

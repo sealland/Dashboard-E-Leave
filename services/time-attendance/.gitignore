@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+.edge-profile/
+.edge-profile-check/
+.edge-profile-mobile/
+.agents/
+skills-lock.json
+10-19.csv

@@ -1,7 +1,7 @@
 <nav class="site-nav" aria-label="เมนู Dashboard">
   <a class="site-nav-brand" href="/">
     <span class="site-nav-brand-mark" aria-hidden="true">D</span>
-    <span class="site-nav-brand-text">Executive Dashboard</span>
+    <span class="site-nav-brand-text">HR Approve</span>
   </a>
   <div class="site-nav-links">
     {% for item in dashboards %}
@@ -10,7 +10,7 @@
           class="site-nav-link{% if active_dashboard == item.id %} is-active{% endif %}"
           href="{{ item.url }}"
         >{{ item.title }}</a>
-      {% else %}
+      {% elif item.coming_soon %}
         <span class="site-nav-link is-disabled" title="เร็วๆ นี้">{{ item.title }}</span>
       {% endif %}
     {% endfor %}

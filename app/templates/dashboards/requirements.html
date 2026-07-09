@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ dashboard.title }} — Requirements</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/requirements.css" />
+</head>
+<body>
+  {% include "partials/nav.html" %}
+
+  <div class="layout req-layout">
+    <header class="header req-header">
+      <div>
+        <p class="eyebrow">กำลังพัฒนา</p>
+        <h1>{{ requirements.title }}</h1>
+        <p class="subtitle">{{ requirements.goal }}</p>
+      </div>
+      <a class="btn btn-ghost" href="/">กลับหน้าแรก</a>
+    </header>
+
+    <section class="card req-card">
+      <h2>แหล่งข้อมูล</h2>
+      <p class="req-meta">
+        <strong>{{ requirements.data_source.database }}</strong> · {{ requirements.data_source.table }}
+      </p>
+      <ul class="req-list">
+        {% for field in requirements.data_source.key_fields %}
+        <li>{{ field }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="card req-card">
+      <h2>กฎธุรกิจ</h2>
+      <ul class="req-list">
+        {% for rule in requirements.business_rules %}
+        <li>{{ rule }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="req-grid">
+      {% for section in requirements.features %}
+      <article class="card req-card">
+        <h2>{{ section.group }}</h2>
+        <ul class="req-list">
+          {% for item in section.items %}
+          <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </article>
+      {% endfor %}
+    </section>
+
+    <section class="card req-card req-card--highlight">
+      <h2>ต่างจาก Dashboard E-Leave</h2>
+      <ul class="req-list">
+        {% for item in requirements.differences_from_e_leave %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    <section class="card req-card req-card--muted">
+      <h2>นอกขอบเขต</h2>
+      <ul class="req-list">
+        {% for item in requirements.out_of_scope %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

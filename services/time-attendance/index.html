@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Time Attendance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark"><span></span><span></span><span></span></div>
+          <p class="brand-title">HR</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a class="nav-item" href="/">ศูนย์ Dashboard</a>
+          <a class="nav-item active" href="./index.html">ภาพรวม</a>
+          <a class="nav-item" href="./report-late.html">รายงานมาสาย</a>
+        </nav>
+
+        <div class="sidebar-user">
+          <div class="avatar">ผ</div>
+          <div>
+            <strong>ผู้บริหาร</strong>
+            <span>Executive</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="page-head">
+          <div>
+            <p class="eyebrow">สรุปภาพรวมองค์กร</p>
+            <h1>Time Attendance</h1>
+            <p class="connection-status" id="connection-status">กำลังเชื่อมต่อระบบ...</p>
+          </div>
+
+          <div class="toolbar">
+            <label class="control">
+              <span>ตั้งแต่</span>
+              <input id="from-input" type="date" />
+            </label>
+
+            <label class="control">
+              <span>ถึง</span>
+              <input id="to-input" type="date" />
+            </label>
+
+            <label class="control">
+              <span>สาขา</span>
+              <select id="branch-select">
+                <option value="all">สาขาทั้งหมด</option>
+              </select>
+            </label>
+
+            <label class="control">
+              <span>แผนก</span>
+              <select id="department-select">
+                <option value="all">แผนกทั้งหมด</option>
+              </select>
+            </label>
+          </div>
+        </header>
+
+        <div id="loading-banner" class="loading-banner" hidden>
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <span class="loading-text">กำลังโหลดข้อมูลจากระบบ...</span>
+        </div>
+
+        <section id="stats-grid" class="stats-grid"></section>
+
+        <section class="charts-row">
+          <article class="panel panel-dept-chart">
+            <div class="panel-head">
+              <div>
+                <h2>แผนกที่ขาด / สาย / ลาสูงสุด</h2>
+                <p>คลิกตัวเลขมาสายเพื่อดูรายละเอียดถึงต้นทาง</p>
+              </div>
+              <div id="dept-bars-legend" class="legend"></div>
+            </div>
+            <div id="department-bars" class="department-bars"></div>
+          </article>
+
+          <article class="panel panel-leave-chart">
+            <div class="panel-head">
+              <div>
+                <h2>สัดส่วนประเภทการลา</h2>
+                <p>สรุปหน่วยลาทั้งหมดในช่วงที่เลือก</p>
+              </div>
+            </div>
+            <div id="leave-breakdown" class="leave-breakdown leave-breakdown--stacked"></div>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>สัดส่วนสาขา</h2>
+                <p>จำนวนพนักงาน (ไม่ซ้ำ) ตามสาขา</p>
+              </div>
+            </div>
+            <div id="branch-breakdown" class="leave-breakdown"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>สรุปทุกแผนก</h2>
+                <p id="range-label">กำลังโหลดข้อมูล</p>
+              </div>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead>
+                  <tr>
+                    <th>แผนก</th>
+                    <th>คน</th>
+                    <th>ขาด</th>
+                    <th>สาย</th>
+                    <th>ลา</th>
+                    <th>สแกนไม่ครบ</th>
+                  </tr>
+                </thead>
+                <tbody id="department-table-body"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel panel-wide">
+            <div class="panel-head">
+              <div>
+                <h2>รายการที่ต้องติดตาม</h2>
+                <p>ซ่อนรายการปกติ — เรียงตามความสำคัญ</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>รหัส</th>
+                    <th>ชื่อพนักงาน</th>
+                    <th>แผนก</th>
+                    <th>เวลาเข้างาน</th>
+                    <th>สถานะ</th>
+                    <th>นาทีสาย</th>
+                  </tr>
+                </thead>
+                <tbody id="detail-table-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

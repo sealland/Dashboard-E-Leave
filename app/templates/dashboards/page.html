@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard E-Leave</title>
+  <title>{{ dashboard.title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -13,11 +13,18 @@
 <body>
   {% include "partials/nav.html" %}
   <div class="layout">
+    {% if dashboard.status == "scaffold" %}
+    <div class="scaffold-banner card" role="status">
+      <strong>กำลังพัฒนา</strong>
+      <span>{{ ui.scaffold_note }}</span>
+    </div>
+    {% endif %}
+
     <header class="header">
       <div>
-        <p class="eyebrow">Executive Dashboard</p>
-        <h1>Dashboard E-Leave</h1>
-        <p class="subtitle">หัวหน้างาน (App_DateN1) และ HR (App_DateHR)</p>
+        <p class="eyebrow">HR Approve</p>
+        <h1>{{ dashboard.title }}</h1>
+        <p class="subtitle">{{ dashboard.subtitle }}</p>
       </div>
       <div class="header-actions">
         <div class="notify-wrap">
@@ -70,7 +77,7 @@
           </select>
         </label>
         <label>
-          สถานะใบลา
+          {{ ui.active_filter_label }}
           <select id="filter-active">
             <option value="">ทั้งหมด</option>
             <option value="2">ยังไม่ครบ</option>
@@ -93,19 +100,19 @@
 
     <section class="charts">
       <div class="card chart-card">
-        <h2>การลาแยกตามแผนก (Top 15)</h2>
+        <h2>{{ ui.chart_dept_title }}</h2>
         <p class="chart-subtitle">จำนวนตามเอกสาร</p>
         <canvas id="chart-dept"></canvas>
       </div>
       <div class="card chart-card">
-        <h2>แยกตามประเภท (ค้างอนุมัติ)</h2>
+        <h2>{{ ui.chart_type_title }}</h2>
         <canvas id="chart-type"></canvas>
       </div>
     </section>
 
     <section class="card table-section">
       <div class="table-header">
-        <h2>รายการคำร้อง <span id="record-count" class="badge">0</span></h2>
+        <h2>{{ ui.records_title }} <span id="record-count" class="badge">0</span></h2>
         <p class="hint">คลิกแถวเพื่อดูรายละเอียดและระยะเวลาแต่ละขั้น</p>
       </div>
       <div class="table-wrap">
@@ -113,7 +120,7 @@
           <thead>
             <tr>
               <th>เลขที่</th>
-              <th>วันขอลา</th>
+              <th>{{ ui.request_date_label }}</th>
               <th>วันที่เอกสาร</th>
               <th class="col-type">ประเภทใบลา</th>
               <th class="col-employee">ชื่อ</th>
@@ -138,6 +145,7 @@
     </div>
   </dialog>
 
+  <script id="dashboard-config" type="application/json">{{ dashboard_config | tojson }}</script>
   <script src="/static/dashboard.js"></script>
 </body>
 </html>

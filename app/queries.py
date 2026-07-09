@@ -206,6 +206,8 @@ def get_by_dept(
     wbdt: Optional[int] = None,
 ) -> list[dict]:
     base, params = _filter_base(date_from, date_to, dept, wbdt)
+    chart_wbdt = wbdt if wbdt is not None else 2
+    params["chart_wbdt"] = chart_wbdt
 
     sql = f"""
     SELECT DEPT_CODE, DEPT_THAIDESC, total
@@ -216,7 +218,7 @@ def get_by_dept(
             COUNT(*) AS total
         FROM ({base}) AS q
         WHERE {NOT_CANCELLED}
-          AND RQI_WBDT = 2
+          AND RQI_WBDT = :chart_wbdt
           AND (App_DateN1 IS NOT NULL OR App_DateHR IS NOT NULL)
         GROUP BY DEPT_CODE, DEPT_THAIDESC
         ORDER BY COUNT(*) DESC

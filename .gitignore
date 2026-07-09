@@ -9,3 +9,5 @@ node_modules/
 dist/
 .DS_Store
 logs/
+services/time-attendance/node_modules/
+services/time-attendance/.env
