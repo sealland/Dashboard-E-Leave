@@ -93,6 +93,11 @@ a.landing-item:hover {
   background: rgba(34, 197, 94, 0.12);
 }
 
+.landing-item-badge--scaffold {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+}
+
 .landing-item-action {
   flex-shrink: 0;
   pointer-events: none;

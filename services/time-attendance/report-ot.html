@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>รายงานโอที — Time Attendance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="ot-page">
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark"><span></span><span></span><span></span></div>
+          <p class="brand-title">HR</p>
+        </div>
+        <nav class="sidebar-nav">
+          <a class="nav-item" href="/">ศูนย์ Dashboard</a>
+          <a class="nav-item" href="./">เมนูรายงาน</a>
+          <a class="nav-item" href="./index.html">รายงานลา</a>
+          <a class="nav-item" href="./report-late.html">รายงานมาสาย</a>
+          <a class="nav-item active" href="./report-ot.html">รายงานโอที</a>
+        </nav>
+        <div class="sidebar-user">
+          <div class="avatar">ผ</div>
+          <div>
+            <strong>ผู้บริหาร</strong>
+            <span>Executive</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="page-head">
+          <div>
+            <p class="eyebrow">รายงานเชิงลึก</p>
+            <h1>รายงาน<span>โอที</span></h1>
+            <p class="page-subtitle" id="range-label">กำลังโหลดข้อมูล...</p>
+            <p class="connection-status" id="connection-status">กำลังเชื่อมต่อ...</p>
+          </div>
+          <div class="toolbar">
+            <label class="control">
+              <span>ตั้งแต่</span>
+              <input id="from-input" type="date" />
+            </label>
+            <label class="control">
+              <span>ถึง</span>
+              <input id="to-input" type="date" />
+            </label>
+            <label class="control">
+              <span>ประเภท OT</span>
+              <select id="df-code-select">
+                <option value="all">ทุกประเภท</option>
+                <option value="1110">ค่าล่วงเวลา X1</option>
+                <option value="1120">ค่าล่วงเวลา X1.5</option>
+                <option value="1130">ค่าล่วงเวลา X2</option>
+                <option value="1140">ค่าล่วงเวลา X3</option>
+                <option value="1150">ค่าล่วงเวลา</option>
+              </select>
+            </label>
+            <label class="control">
+              <span>สาขา</span>
+              <select id="branch-select"><option value="all">สาขาทั้งหมด</option></select>
+            </label>
+            <label class="control">
+              <span>แผนก</span>
+              <select id="department-select"><option value="all">แผนกทั้งหมด</option></select>
+            </label>
+          </div>
+        </header>
+
+        <div id="loading-banner" class="loading-banner" hidden>
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <span class="loading-text">กำลังโหลดข้อมูลจากระบบ...</span>
+        </div>
+
+        <section class="ot-hero">
+          <article class="ot-hero-main">
+            <p class="ot-hero-kicker">Executive OT Monitor</p>
+            <h2>จับตาภาระโอทีและสัญญาณผิดปกติของแต่ละหน่วยงาน</h2>
+            <p class="ot-hero-copy">
+              มุมมองสำหรับผู้บริหาร เน้นหาสาขาและแผนกที่มีภาระ OT สูงกว่ากลุ่มอื่นในช่วงวันที่ที่เลือก
+            </p>
+            <div class="ot-hero-alerts">
+              <div class="ot-alert-card">
+                <span class="ot-alert-label">สาขาเด่น</span>
+                <strong id="hero-top-branch">-</strong>
+              </div>
+              <div class="ot-alert-card">
+                <span class="ot-alert-label">แผนกเด่น</span>
+                <strong id="hero-top-dept">-</strong>
+              </div>
+            </div>
+          </article>
+          <article class="ot-hero-side">
+            <p class="ot-hero-side-label">OT Focus</p>
+            <div id="summary-grid" class="stats-grid stats-grid--hero"></div>
+          </article>
+        </section>
+
+        <section class="ot-summary-row">
+          <article class="panel panel-ot-branch">
+            <div class="panel-head">
+              <div>
+                <h2>สรุปตามสาขา</h2>
+                <p>ชั่วโมง OT รวม ÷ พนักงานทั้งหมดในแต่ละหน่วย</p>
+              </div>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead>
+                  <tr>
+                    <th>สาขา</th>
+                    <th>จำนวนคน</th>
+                    <th>รวมชม. OT</th>
+                    <th>เฉลี่ยชม./คน</th>
+                  </tr>
+                </thead>
+                <tbody id="branch-summary-body"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel panel-ot-dept">
+            <div class="panel-head">
+              <div>
+                <h2>สรุปตามแผนก</h2>
+                <p>ชั่วโมง OT รวม ÷ พนักงานทั้งหมดในแต่ละหน่วย</p>
+              </div>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead>
+                  <tr>
+                    <th>แผนก</th>
+                    <th>จำนวนคน</th>
+                    <th>รวมชม. OT</th>
+                    <th>เฉลี่ยชม./คน</th>
+                  </tr>
+                </thead>
+                <tbody id="dept-summary-body"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel panel-branch-chart">
+          <div class="panel-head">
+            <div>
+              <h2>เปรียบเทียบรวมชั่วโมง OT ตามสาขา</h2>
+              <p>Curve รายเดือนแยกแต่ละสาขา · scale อิสระ อ่าน trend ได้ทันที</p>
+            </div>
+            <div class="chart-tabs" role="tablist" aria-label="มุมมองกราฟสาขา">
+              <button type="button" class="chart-tab active" data-branch-tab="monthly" role="tab" aria-selected="true">
+                Trend รายเดือน
+              </button>
+              <button type="button" class="chart-tab" data-branch-tab="total" role="tab" aria-selected="false">
+                รวมช่วง
+              </button>
+            </div>
+          </div>
+          <div id="branch-chart-content" class="branch-chart-content"></div>
+        </section>
+
+        <section class="panel panel-branch-combined">
+          <div class="panel-head">
+            <div>
+              <h2>เปรียบเทียบ Curve รวมทุกสาขา <span class="chart-badge-test">ทดสอบ</span></h2>
+              <p>ดู trend ข้ามสาขาใน scale เดียวกัน · ชม. จริงแยก MMT · Index 100 เทียบรูปทรง curve</p>
+            </div>
+            <div class="chart-tabs" role="tablist" aria-label="มุมมองกราฟรวมสาขา">
+              <button type="button" class="chart-tab active" data-combined-tab="absolute" role="tab" aria-selected="true">
+                ชม. จริง
+              </button>
+              <button type="button" class="chart-tab" data-combined-tab="index" role="tab" aria-selected="false">
+                Index 100
+              </button>
+            </div>
+          </div>
+          <div id="branch-combined-chart" class="branch-combined-content"></div>
+        </section>
+
+        <section class="panel panel-dept-chart">
+          <div class="panel-head">
+            <div>
+              <h2>เฉลี่ยชม. OT ต่อพนักงาน (แผนก)</h2>
+              <p>เรียงตามเฉลี่ยชม./คน ในช่วงที่เลือก</p>
+            </div>
+          </div>
+          <div id="department-bars" class="department-bars"></div>
+        </section>
+
+        <section class="report-section">
+          <div class="panel-head">
+            <div>
+              <h2>รายละเอียดรายคน</h2>
+              <p>กดที่แต่ละรายการเพื่อดูสรุปรายวันและข้อมูลต้นทาง</p>
+            </div>
+          </div>
+          <div id="report-body" class="report-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./report-ot.js"></script>
+  </body>
+</html>

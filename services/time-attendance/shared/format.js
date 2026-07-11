@@ -50,6 +50,13 @@ export function formatDisplayDate(isoDate) {
   return `${day}/${month}/${year}`;
 }
 
+export function formatLooseDate(value) {
+  if (!value) return "-";
+  const date = parseDateString(value);
+  if (!date) return String(value);
+  return formatDisplayDate(formatIsoDate(date));
+}
+
 export function formatScanDateTime(value) {
   if (!value) return "-";
   const text = String(value).trim();

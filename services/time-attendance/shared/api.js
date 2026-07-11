@@ -1,5 +1,20 @@
 import { withBasePath } from "./base-path.js";
 
+export async function fetchOvertime(filters) {
+  const { getDateRange } = await import("./filters.js");
+  const from = filters.from || getDateRange(filters).from;
+  const to = filters.to || getDateRange(filters).to;
+  const params = new URLSearchParams({ from, to });
+  if (filters.df_code) params.set("df_code", filters.df_code);
+
+  const response = await fetch(`${withBasePath("/api/overtime")}?${params.toString()}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลดข้อมูลโอทีได้");
+  }
+  return payload;
+}
+
 export async function fetchAttendance(filters) {
   const { getDateRange } = await import("./filters.js");
   const from = filters.from || getDateRange(filters).from;

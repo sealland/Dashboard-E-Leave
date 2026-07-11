@@ -55,8 +55,10 @@
         <div class="landing-item-body">
           <div class="landing-item-head">
             <h2 class="landing-item-title">{{ item.title }}</h2>
-            {% if item.coming_soon %}
+            {% if item.coming_soon or item.status == "soon" %}
               <span class="landing-item-badge">เร็วๆ นี้</span>
+            {% elif item.status == "scaffold" %}
+              <span class="landing-item-badge landing-item-badge--scaffold">ยังไม่พร้อมใช้งาน</span>
             {% else %}
               <span class="landing-item-badge landing-item-badge--ready">พร้อมใช้งาน</span>
             {% endif %}

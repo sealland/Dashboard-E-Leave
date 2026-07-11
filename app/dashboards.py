@@ -36,7 +36,7 @@ DASHBOARDS: list[DashboardItem] = [
     {
         "id": "time-attendance",
         "title": "Time Attendance",
-        "description": "สรุปภาพรวมการมาทำงาน ขาด สาย ลา และสแกนไม่ครบ",
+        "description": "รายงานลา มาสาย และโอที จากระบบลงเวลา",
         "subtitle": "ข้อมูลจากระบบลงเวลา",
         "url": "/hr-approve/",
         "icon": "attendance",

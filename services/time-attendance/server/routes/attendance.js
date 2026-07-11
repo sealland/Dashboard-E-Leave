@@ -43,7 +43,7 @@ router.get("/health", async (_req, res) => {
     await pool.request().query("SELECT TOP 1 EMP_KEY FROM [dbo].[vw_employee_checkin]");
     res.json({
       ok: true,
-      database: process.env.DB_DATABASE || "INFO",
+      database: process.env.DB_DATABASE || process.env.DB_NAME || "INFO",
       source: "vw_employee_checkin",
     });
   } catch (error) {
