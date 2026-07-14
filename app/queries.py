@@ -224,21 +224,40 @@ def get_by_dept(
 ) -> list[dict]:
     base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind)
 
-    sql = f"""
-    SELECT DEPT_CODE, DEPT_THAIDESC, total
-    FROM (
-        SELECT TOP 15
-            DEPT_CODE,
-            DEPT_THAIDESC,
-            COUNT(*) AS total
-        FROM ({base}) AS q
-        WHERE {NOT_CANCELLED}
-          AND (App_DateN1 IS NOT NULL OR App_DateHR IS NOT NULL)
-        GROUP BY DEPT_CODE, DEPT_THAIDESC
-        ORDER BY COUNT(*) DESC
-    ) AS top_depts
-    ORDER BY {DEPT_NATURAL_ORDER}
-    """
+    if doc_kind == "all":
+        sql = f"""
+        SELECT DEPT_CODE, DEPT_THAIDESC, total, leave_total, ot_total
+        FROM (
+            SELECT TOP 15
+                DEPT_CODE,
+                DEPT_THAIDESC,
+                COUNT(*) AS total,
+                SUM(CASE WHEN {DOC_PREFIX} = 'L' THEN 1 ELSE 0 END) AS leave_total,
+                SUM(CASE WHEN {DOC_PREFIX} = 'T' THEN 1 ELSE 0 END) AS ot_total
+            FROM ({base}) AS q
+            WHERE {NOT_CANCELLED}
+              AND (App_DateN1 IS NOT NULL OR App_DateHR IS NOT NULL)
+            GROUP BY DEPT_CODE, DEPT_THAIDESC
+            ORDER BY COUNT(*) DESC
+        ) AS top_depts
+        ORDER BY {DEPT_NATURAL_ORDER}
+        """
+    else:
+        sql = f"""
+        SELECT DEPT_CODE, DEPT_THAIDESC, total
+        FROM (
+            SELECT TOP 15
+                DEPT_CODE,
+                DEPT_THAIDESC,
+                COUNT(*) AS total
+            FROM ({base}) AS q
+            WHERE {NOT_CANCELLED}
+              AND (App_DateN1 IS NOT NULL OR App_DateHR IS NOT NULL)
+            GROUP BY DEPT_CODE, DEPT_THAIDESC
+            ORDER BY COUNT(*) DESC
+        ) AS top_depts
+        ORDER BY {DEPT_NATURAL_ORDER}
+        """
     return _df_to_records(execute_query(sql, params))
 
 

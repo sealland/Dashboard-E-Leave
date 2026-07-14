@@ -52,7 +52,7 @@ function formatLeaveType(record) {
 
 function getDocKind() {
   const sel = $("#filter-doc-kind");
-  if (sel) return sel.value || DASHBOARD.doc_kind || "L";
+  if (sel) return sel.value || DASHBOARD.doc_kind || "all";
   return DASHBOARD.doc_kind || "";
 }
 
@@ -321,15 +321,26 @@ function renderDeptChart(rows) {
     .slice(0, 15)
     .sort(compareDeptCode);
   const labels = top.map((r) => r.DEPT_CODE || "-");
-  renderChart(
-    "#chart-dept",
-    "dept",
-    labels,
-    [{ label: deptChartLabel(), data: top.map((r) => r.total ?? 0), backgroundColor: "#38bdf8" }],
-    "bar",
-    false,
-    true
-  );
+  const stacked = getDocKind() === "all" && top.some((r) => r.leave_total != null || r.ot_total != null);
+
+  const datasets = stacked
+    ? [
+        {
+          label: "ลา (L)",
+          data: top.map((r) => r.leave_total ?? 0),
+          backgroundColor: "#38bdf8",
+          stack: "dept",
+        },
+        {
+          label: "โอที (OT)",
+          data: top.map((r) => r.ot_total ?? 0),
+          backgroundColor: "#f59e0b",
+          stack: "dept",
+        },
+      ]
+    : [{ label: deptChartLabel(), data: top.map((r) => r.total ?? 0), backgroundColor: "#38bdf8" }];
+
+  renderChart("#chart-dept", "dept", labels, datasets, "bar", stacked, !stacked);
 }
 
 function renderTypeChart(rows) {

@@ -33,7 +33,7 @@ DASHBOARDS: list[DashboardItem] = [
         "status": "live",
         "template": "dashboards/page.html",
         "wbdt": None,
-        "doc_kind": "L",
+        "doc_kind": "all",
     },
     {
         "id": "time-attendance",

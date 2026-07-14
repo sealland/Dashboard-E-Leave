@@ -62,9 +62,9 @@
         <label>
           ประเภทเอกสาร
           <select id="filter-doc-kind">
+            <option value="all" selected>ทั้งหมด (L + OT)</option>
             <option value="L">ลา (L)</option>
             <option value="T">โอที (OT) (T)</option>
-            <option value="all">ทั้งหมด (L + OT)</option>
           </select>
         </label>
         <label class="filter-type-hidden">
@@ -154,6 +154,6 @@
   </dialog>
 
   <script id="dashboard-config" type="application/json">{{ dashboard_config | tojson }}</script>
-  <script src="/static/dashboard.js?v=doc-kind-2"></script>
+  <script src="/static/dashboard.js?v=doc-kind-4"></script>
 </body>
 </html>
