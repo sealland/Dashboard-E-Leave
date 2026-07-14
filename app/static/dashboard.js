@@ -37,14 +37,44 @@ const LEAVE_TYPE_LABELS = {
 };
 
 function formatLeaveType(record) {
+  const ref = (record.RQI_REF || "").trim().toUpperCase();
+  if (ref.startsWith("T")) return "โอที (OT)";
+  if (ref.startsWith("L")) return "ลา";
   const wbdt = record.RQI_WBDT ?? record.wbdt;
   if (wbdt != null && LEAVE_TYPE_LABELS[wbdt]) {
     return LEAVE_TYPE_LABELS[wbdt];
   }
   const desc = record.WBDT_THAIDESC || "";
-  if (desc.includes("ล่วงเวลา")) return LEAVE_TYPE_LABELS[1];
-  if (desc.includes("ลาประเภท")) return LEAVE_TYPE_LABELS[2];
+  if (desc && desc.includes("ล่วงเวลา")) return LEAVE_TYPE_LABELS[1];
+  if (desc && desc.includes("ลาประเภท")) return LEAVE_TYPE_LABELS[2];
   return desc || "-";
+}
+
+function getDocKind() {
+  const sel = $("#filter-doc-kind");
+  if (sel) return sel.value || DASHBOARD.doc_kind || "L";
+  return DASHBOARD.doc_kind || "";
+}
+
+function requestDateLabel() {
+  const kind = getDocKind();
+  if (kind === "T") return "วันขอ OT";
+  if (kind === "L") return "วันขอลา";
+  return "วันขอลา/OT";
+}
+
+function pastDateLabel(record) {
+  const ref = (record?.RQI_REF || "").trim().toUpperCase();
+  if (ref.startsWith("T")) return "เลยวัน OT แล้ว";
+  if (ref.startsWith("L")) return "เลยวันลาแล้ว";
+  return getDocKind() === "T" ? "เลยวัน OT แล้ว" : "เลยวันลาแล้ว";
+}
+
+function deptChartLabel() {
+  const kind = getDocKind();
+  if (kind === "T") return "โอที (OT)";
+  if (kind === "L") return "การลา";
+  return "คำร้อง";
 }
 
 const $ = (sel) => document.querySelector(sel);
@@ -108,7 +138,7 @@ function daysPastCell(days, titlePrefix, warn = 1, crit = 3) {
 
 function daysPastLeaveCell(record) {
   const { warn, crit } = DAYS_OVERDUE_THRESHOLDS;
-  return daysPastCell(record.days_past_leave, "เลยวันลาแล้ว", warn, crit);
+  return daysPastCell(record.days_past_leave, pastDateLabel(record), warn, crit);
 }
 
 function daysPastHrCell(record) {
@@ -131,12 +161,16 @@ function params() {
   if (dateFrom) q.set("date_from", dateFrom);
   if (dateTo) q.set("date_to", dateTo);
   const dept = $("#filter-dept").value;
-  const wbdt = DASHBOARD.wbdt ?? $("#filter-type").value;
+  const docKind = getDocKind();
   const stage = $("#filter-stage").value;
   const active = $("#filter-active").value;
   const search = $("#filter-search").value.trim();
   if (dept) q.set("dept", dept);
-  if (wbdt) q.set("wbdt", wbdt);
+  // Only lock WBDT when dashboard config says so — do not use hidden filter-type
+  if (DASHBOARD.wbdt != null && DASHBOARD.wbdt !== "") {
+    q.set("wbdt", String(DASHBOARD.wbdt));
+  }
+  if (docKind) q.set("doc_kind", docKind);
   if (stage) q.set("stage", stage);
   if (active) q.set("active", active);
   if (search) q.set("search", search);
@@ -291,7 +325,7 @@ function renderDeptChart(rows) {
     "#chart-dept",
     "dept",
     labels,
-    [{ label: "การลา", data: top.map((r) => r.total ?? 0), backgroundColor: "#38bdf8" }],
+    [{ label: deptChartLabel(), data: top.map((r) => r.total ?? 0), backgroundColor: "#38bdf8" }],
     "bar",
     false,
     true
@@ -299,7 +333,7 @@ function renderDeptChart(rows) {
 }
 
 function renderTypeChart(rows) {
-  const labels = rows.map((r) => formatLeaveType(r));
+  const labels = rows.map((r) => r.WBDT_THAIDESC || formatLeaveType(r));
   renderChart(
     "#chart-type",
     "type",
@@ -317,6 +351,8 @@ function renderTypeChart(rows) {
 function renderTable(records) {
   state.records = records;
   $("#record-count").textContent = records.length;
+  const requestDateTh = document.querySelector("#records-table thead th:nth-child(2)");
+  if (requestDateTh) requestDateTh.textContent = requestDateLabel();
   const tbody = $("#records-table tbody");
   if (!records.length) {
     tbody.innerHTML = `<tr><td colspan="11" class="loading">ไม่พบข้อมูล</td></tr>`;
@@ -575,8 +611,9 @@ function bindEvents() {
     });
   });
 
-  ["filter-dept", "filter-type", "filter-stage", "filter-active"].forEach((id) => {
-    $(`#${id}`).addEventListener("change", loadData);
+  ["filter-dept", "filter-doc-kind", "filter-type", "filter-stage", "filter-active"].forEach((id) => {
+    const el = $(`#${id}`);
+    if (el) el.addEventListener("change", loadData);
   });
 
   let searchTimer;
@@ -617,6 +654,9 @@ async function init() {
   bindEvents();
   if (DASHBOARD.wbdt != null) {
     $("#filter-type").value = String(DASHBOARD.wbdt);
+  }
+  if (DASHBOARD.doc_kind && $("#filter-doc-kind")) {
+    $("#filter-doc-kind").value = DASHBOARD.doc_kind;
   }
   setDefaultDateRange();
   if ("Notification" in window && Notification.permission === "granted") {

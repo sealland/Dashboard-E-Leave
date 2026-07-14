@@ -566,7 +566,10 @@ th {
   color: var(--muted);
 }
 
-#records-table .col-type,
+#records-table .col-type {
+  min-width: 88px;
+}
+
 .filter-type-hidden {
   display: none !important;
 }

@@ -59,6 +59,14 @@
             <option value="">ทุกแผนก</option>
           </select>
         </label>
+        <label>
+          ประเภทเอกสาร
+          <select id="filter-doc-kind">
+            <option value="L">ลา (L)</option>
+            <option value="T">โอที (OT) (T)</option>
+            <option value="all">ทั้งหมด (L + OT)</option>
+          </select>
+        </label>
         <label class="filter-type-hidden">
           ประเภท
           <select id="filter-type">
@@ -113,7 +121,7 @@
     <section class="card table-section">
       <div class="table-header">
         <h2>{{ ui.records_title }} <span id="record-count" class="badge">0</span></h2>
-        <p class="hint">คลิกแถวเพื่อดูรายละเอียดและระยะเวลาแต่ละขั้น</p>
+        <p class="hint">เรียงตามวันเลยวันที่ขอลา/OT มากสุดก่อน — คลิกแถวเพื่อดูรายละเอียด</p>
       </div>
       <div class="table-wrap">
         <table id="records-table">
@@ -122,7 +130,7 @@
               <th>เลขที่</th>
               <th>{{ ui.request_date_label }}</th>
               <th>วันที่เอกสาร</th>
-              <th class="col-type">ประเภทใบลา</th>
+              <th class="col-type">ประเภท</th>
               <th class="col-employee">ชื่อ</th>
               <th>แผนก</th>
               <th>สถานะ</th>
@@ -146,6 +154,6 @@
   </dialog>
 
   <script id="dashboard-config" type="application/json">{{ dashboard_config | tojson }}</script>
-  <script src="/static/dashboard.js"></script>
+  <script src="/static/dashboard.js?v=doc-kind-2"></script>
 </body>
 </html>

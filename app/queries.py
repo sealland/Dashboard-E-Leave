@@ -10,6 +10,7 @@ from db.connection import execute_query
 
 NOT_CANCELLED = "ISNULL(API_APRS, 0) <> 101"
 IS_CANCELLED = "ISNULL(API_APRS, 0) = 101"
+DOC_PREFIX = "UPPER(LEFT(LTRIM(RQI_REF), 1))"
 
 DEPT_NATURAL_ORDER = """
     CASE
@@ -85,6 +86,16 @@ WHERE 1 = 1
 """
 
 
+def _apply_doc_kind(sql: str, doc_kind: Optional[str]) -> str:
+    if doc_kind == "L":
+        sql += f" AND {DOC_PREFIX} = 'L'"
+    elif doc_kind == "T":
+        sql += f" AND {DOC_PREFIX} = 'T'"
+    elif doc_kind == "all":
+        sql += f" AND {DOC_PREFIX} IN ('L', 'T')"
+    return sql
+
+
 def _apply_filters(
     sql: str,
     params: dict[str, Any],
@@ -92,6 +103,7 @@ def _apply_filters(
     date_to: Optional[str],
     dept: Optional[str],
     wbdt: Optional[int],
+    doc_kind: Optional[str],
     stage: Optional[str],
     active: Optional[int],
 ) -> tuple[str, dict[str, Any]]:
@@ -110,6 +122,8 @@ def _apply_filters(
     if wbdt is not None:
         sql += " AND RQI_WBDT = :wbdt"
         params["wbdt"] = wbdt
+
+    sql = _apply_doc_kind(sql, doc_kind)
 
     if stage == "cancelled":
         sql += f" AND {IS_CANCELLED}"
@@ -159,12 +173,13 @@ def _filter_base(
     date_to: Optional[str],
     dept: Optional[str],
     wbdt: Optional[int],
+    doc_kind: Optional[str] = None,
     stage: Optional[str] = None,
     active: Optional[int] = None,
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {}
     return _apply_filters(
-        BASE_SELECT, params, date_from, date_to, dept, wbdt, stage, active
+        BASE_SELECT, params, date_from, date_to, dept, wbdt, doc_kind, stage, active
     )
 
 
@@ -173,8 +188,9 @@ def get_summary(
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
+    doc_kind: Optional[str] = None,
 ) -> dict:
-    base, params = _filter_base(date_from, date_to, dept, wbdt)
+    base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind)
 
     sql = f"""
     SELECT
@@ -204,10 +220,9 @@ def get_by_dept(
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
+    doc_kind: Optional[str] = None,
 ) -> list[dict]:
-    base, params = _filter_base(date_from, date_to, dept, wbdt)
-    chart_wbdt = wbdt if wbdt is not None else 2
-    params["chart_wbdt"] = chart_wbdt
+    base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind)
 
     sql = f"""
     SELECT DEPT_CODE, DEPT_THAIDESC, total
@@ -218,7 +233,6 @@ def get_by_dept(
             COUNT(*) AS total
         FROM ({base}) AS q
         WHERE {NOT_CANCELLED}
-          AND RQI_WBDT = :chart_wbdt
           AND (App_DateN1 IS NOT NULL OR App_DateHR IS NOT NULL)
         GROUP BY DEPT_CODE, DEPT_THAIDESC
         ORDER BY COUNT(*) DESC
@@ -232,22 +246,23 @@ def get_by_type(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
+    doc_kind: Optional[str] = None,
 ) -> list[dict]:
-    base, params = _filter_base(date_from, date_to, dept, None)
+    base, params = _filter_base(date_from, date_to, dept, None, doc_kind)
 
     sql = f"""
     SELECT
-        RQI_WBDT,
-        CASE RQI_WBDT
-            WHEN 1 THEN N'ขออนุมัติล่วงเวลา'
-            WHEN 2 THEN N'ขออนุมัติลาประเภทต่างๆ'
-            ELSE MAX(WBDT_THAIDESC)
+        {DOC_PREFIX} AS doc_prefix,
+        CASE {DOC_PREFIX}
+            WHEN 'L' THEN N'ลา'
+            WHEN 'T' THEN N'โอที (OT)'
+            ELSE N'อื่นๆ'
         END AS WBDT_THAIDESC,
         COUNT(*) AS total,
         SUM(CASE WHEN {IS_CANCELLED} THEN 0 WHEN App_DateN1 IS NULL THEN 1 ELSE 0 END) AS wait_n1,
         SUM(CASE WHEN {IS_CANCELLED} THEN 0 WHEN App_DateN1 IS NOT NULL AND App_DateHR IS NULL THEN 1 ELSE 0 END) AS wait_hr
     FROM ({base}) AS q
-    GROUP BY RQI_WBDT
+    GROUP BY {DOC_PREFIX}
     HAVING SUM(CASE WHEN {IS_CANCELLED} THEN 0 WHEN App_DateN1 IS NULL OR App_DateHR IS NULL THEN 1 ELSE 0 END) > 0
     ORDER BY
         SUM(CASE WHEN {IS_CANCELLED} THEN 0 WHEN App_DateN1 IS NULL THEN 1 ELSE 0 END)
@@ -261,6 +276,7 @@ def get_records(
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
+    doc_kind: Optional[str] = None,
     stage: Optional[str] = None,
     active: Optional[int] = None,
     search: Optional[str] = None,
@@ -268,20 +284,25 @@ def get_records(
 ) -> list[dict]:
     params: dict[str, Any] = {"limit": limit}
     sql, params = _apply_filters(
-        BASE_SELECT, params, date_from, date_to, dept, wbdt, stage, active
+        BASE_SELECT, params, date_from, date_to, dept, wbdt, doc_kind, stage, active
     )
 
     if search:
         sql += " AND (RQI_REF LIKE :search OR Name LIKE :search OR App_N1 LIKE :search OR App_HR LIKE :search)"
         params["search"] = f"%{search}%"
 
-    sql = f"SELECT TOP (:limit) * FROM ({sql}) AS q ORDER BY RQI_DATE DESC, RQI_REF DESC"
+    sql = f"""SELECT TOP (:limit) * FROM ({sql}) AS q
+    ORDER BY
+        COALESCE(days_past_leave, 0) DESC,
+        RQI_FROM_DATE ASC,
+        RQI_REF DESC"""
     return _df_to_records(execute_query(sql, params))
 
 
 def get_alert_items(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    doc_kind: Optional[str] = None,
     warn_n1: int = 3,
     warn_hr: int = 5,
     crit_n1: int = 7,
@@ -296,7 +317,7 @@ def get_alert_items(
         "limit": limit,
     }
     base, params = _apply_filters(
-        BASE_SELECT, params, date_from, date_to, None, None, "incomplete", None
+        BASE_SELECT, params, date_from, date_to, None, None, doc_kind, "incomplete", None
     )
 
     sql = f"""
@@ -329,6 +350,7 @@ def get_alert_items(
 def get_alerts(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    doc_kind: Optional[str] = None,
     warn_n1: int = 3,
     warn_hr: int = 5,
     crit_n1: int = 7,
@@ -341,7 +363,7 @@ def get_alerts(
         "crit_hr": crit_hr,
     }
     base, params = _apply_filters(
-        BASE_SELECT, params, date_from, date_to, None, None, "incomplete", None
+        BASE_SELECT, params, date_from, date_to, None, None, doc_kind, "incomplete", None
     )
 
     sql = f"""
@@ -359,6 +381,7 @@ def get_alerts(
     row["items"] = get_alert_items(
         date_from=date_from,
         date_to=date_to,
+        doc_kind=doc_kind,
         warn_n1=warn_n1,
         warn_hr=warn_hr,
         crit_n1=crit_n1,

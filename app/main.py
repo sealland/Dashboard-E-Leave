@@ -74,11 +74,12 @@ async def api_summary(
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
+    doc_kind: Optional[str] = None,
 ):
     return {
-        "summary": get_summary(date_from=date_from, date_to=date_to, dept=dept, wbdt=wbdt),
-        "by_dept": get_by_dept(date_from=date_from, date_to=date_to, dept=dept, wbdt=wbdt),
-        "by_type": get_by_type(date_from=date_from, date_to=date_to, dept=dept),
+        "summary": get_summary(date_from=date_from, date_to=date_to, dept=dept, wbdt=wbdt, doc_kind=doc_kind),
+        "by_dept": get_by_dept(date_from=date_from, date_to=date_to, dept=dept, wbdt=wbdt, doc_kind=doc_kind),
+        "by_type": get_by_type(date_from=date_from, date_to=date_to, dept=dept, doc_kind=doc_kind),
     }
 
 
@@ -88,6 +89,7 @@ async def api_records(
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
+    doc_kind: Optional[str] = None,
     stage: Optional[str] = None,
     active: Optional[int] = None,
     search: Optional[str] = None,
@@ -98,6 +100,7 @@ async def api_records(
         date_to=date_to,
         dept=dept,
         wbdt=wbdt,
+        doc_kind=doc_kind,
         stage=stage,
         active=active,
         search=search,
@@ -109,6 +112,7 @@ async def api_records(
 async def api_alerts(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    doc_kind: Optional[str] = None,
     warn_n1: int = Query(3, ge=1),
     warn_hr: int = Query(5, ge=1),
     crit_n1: int = Query(7, ge=1),
@@ -117,6 +121,7 @@ async def api_alerts(
     return get_alerts(
         date_from=date_from,
         date_to=date_to,
+        doc_kind=doc_kind,
         warn_n1=warn_n1,
         warn_hr=warn_hr,
         crit_n1=crit_n1,

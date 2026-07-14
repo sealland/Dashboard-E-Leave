@@ -49,7 +49,7 @@
       <article class="card req-card">
         <h2>{{ section.group }}</h2>
         <ul class="req-list">
-          {% for item in section.items %}
+          {% for item in section['items'] %}
           <li>{{ item }}</li>
           {% endfor %}
         </ul>
