@@ -51,6 +51,7 @@ a.landing-item:hover {
 .landing-item-icon--overtime { color: var(--n1); }
 .landing-item-icon--attendance { color: var(--n1); }
 .landing-item-icon--summary { color: var(--success); }
+.landing-item-icon--emc { color: #38bdf8; }
 
 .landing-item-body {
   flex: 1;

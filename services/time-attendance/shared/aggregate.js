@@ -1,6 +1,7 @@
 import { isLateRecord } from "./df-code-map.js";
 import { enrichDailyLateReal } from "./late-calc.js";
 import { formatIsoDate, includesToken, numeric, parseDateString } from "./format.js";
+import { normalizeBranchCode } from "./ot-aggregate.js";
 
 export const LEAVE_BREAKDOWN_LABELS = ["ลากิจ", "ลากิจพิเศษ", "พักร้อน", "ป่วย", "อื่นๆ"];
 
@@ -66,8 +67,11 @@ export function makeDailyBase(row) {
     departmentCode: row.DEPT_CODE || "ไม่ระบุ",
     departmentName: row.DEPT_THAIDESC || row.DEPT_CODE || "ไม่ระบุแผนก",
     department: row.DEPT_CODE || row.DEPT_THAIDESC || "ไม่ระบุ",
-    branchCode: row.BR_CODE || "ไม่ระบุ",
-    branchName: row.BR_THAIDESC || row.BR_CODE || "ไม่ระบุสาขา",
+    branchCode: normalizeBranchCode(row.BR_CODE) || "ไม่ระบุ",
+    branchName:
+      normalizeBranchCode(row.BR_CODE) === "MMT"
+        ? "MMT"
+        : row.BR_THAIDESC || row.BR_CODE || "ไม่ระบุสาขา",
     shift: row.SF_NAME || "",
     isHoliday: includesToken(row.SF_NAME, "วันหยุด"),
     absent: 0,
@@ -211,7 +215,7 @@ export function summarize(rows) {
     if (!summary.branches.has(row.branchCode)) {
       summary.branches.set(row.branchCode, {
         code: row.branchCode,
-        name: row.branchName,
+        name: row.branchCode === "MMT" ? "MMT" : row.branchName,
         employees: new Set(),
       });
     }

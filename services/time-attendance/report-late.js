@@ -2,6 +2,7 @@ import { aggregateDailyRows, buildLateSummary } from "./shared/aggregate.js";
 import { isLateRecord } from "./shared/df-code-map.js";
 import { computeRealLateMinutes, formatLateBreakdown, formatLateMinutes } from "./shared/late-calc.js";
 import { fetchAttendance } from "./shared/api.js";
+import { normalizeBranchCode } from "./shared/ot-aggregate.js";
 import {
   getDefaultRange,
   getExpandedFetchRange,
@@ -105,7 +106,7 @@ function getFilteredRaw() {
   return state.rows.filter((row) => {
     const key = `${row.EMP_KEY}__${row.TMR_DATE}`;
     if (!eligibleKeys.has(key)) return false;
-    if (state.filters.branch !== "all" && row.BR_CODE !== state.filters.branch) return false;
+    if (state.filters.branch !== "all" && normalizeBranchCode(row.BR_CODE) !== state.filters.branch) return false;
     if (state.filters.department !== "all" && row.DEPT_CODE !== state.filters.department) return false;
     return true;
   });

@@ -602,6 +602,43 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  align-items: stretch;
+}
+
+.dashboard-grid > .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-dept-summary .dept-summary-table {
+  flex: 1 1 auto;
+  max-height: 320px;
+  min-height: 0;
+}
+
+.dept-summary-table table {
+  font-size: 0.82rem;
+  table-layout: fixed;
+}
+
+.dept-summary-table th,
+.dept-summary-table td {
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.dept-summary-table th:first-child,
+.dept-summary-table td.col-dept {
+  width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dept-summary-table th:not(:first-child),
+.dept-summary-table td:not(.col-dept) {
+  width: 12.4%;
+  text-align: right;
 }
 
 .charts-row {

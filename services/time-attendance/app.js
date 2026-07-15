@@ -149,7 +149,8 @@ function populateFilters() {
   branches.forEach(([code, name]) => {
     const option = document.createElement("option");
     option.value = code;
-    option.textContent = name && name !== code ? `${code} - ${name}` : code;
+    option.textContent = code;
+    if (name && name !== code) option.title = name;
     els.branchSelect.append(option);
   });
 
@@ -414,10 +415,7 @@ function renderLeaveBreakdown(summary) {
 }
 
 function renderBranchBreakdown(summary) {
-  const entries = summary.branches.map((branch) => {
-    const label = branch.name && branch.name !== branch.code ? `${branch.code} - ${branch.name}` : branch.code;
-    return [label, branch.employees];
-  });
+  const entries = summary.branches.map((branch) => [branch.code, branch.employees]);
   const total = entries.reduce((sum, [, value]) => sum + value, 0);
   renderBreakdownChart(els.branchBreakdown, entries, {
     total,
@@ -442,9 +440,11 @@ function renderDepartmentTable(summary) {
         row.lateTimes > 0
           ? `<a class="table-link" href="${deptLateHref(row.departmentCode)}">${formatNumber(row.lateTimes)}</a>`
           : formatNumber(row.lateTimes);
+      const deptLabel = row.departmentCode || row.departmentName || "-";
+      const deptTitle = row.departmentName && row.departmentName !== deptLabel ? row.departmentName : "";
       return `
         <tr>
-          <td>${escapeHtml(row.departmentName)}</td>
+          <td class="col-dept" title="${escapeHtml(deptTitle || deptLabel)}">${escapeHtml(deptLabel)}</td>
           <td>${formatNumber(row.employees)}</td>
           <td>${formatNumber(row.absent)}</td>
           <td>${lateCell}</td>

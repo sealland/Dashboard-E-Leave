@@ -280,13 +280,53 @@ const barValueLabelsPlugin = {
   },
 };
 
-function renderChart(canvasId, chartKey, labels, datasets, type = "bar", stacked = false, showBarLabels = false) {
+/** Label ค่ารวมบนยอด stacked bar (หนึ่งตัวเลขต่อแท่ง) */
+const stackedTotalLabelsPlugin = {
+  id: "stackedTotalLabels",
+  afterDatasetsDraw(chart) {
+    const { ctx, data } = chart;
+    const datasets = data.datasets || [];
+    if (!datasets.length) return;
+
+    const visibleIndexes = datasets
+      .map((_, i) => i)
+      .filter((i) => !chart.getDatasetMeta(i).hidden);
+    if (!visibleIndexes.length) return;
+
+    const topDatasetIndex = visibleIndexes[visibleIndexes.length - 1];
+    const topMeta = chart.getDatasetMeta(topDatasetIndex);
+    const pointCount = topMeta.data.length;
+
+    for (let index = 0; index < pointCount; index += 1) {
+      let total = 0;
+      for (const di of visibleIndexes) {
+        const v = Number(datasets[di].data[index] ?? 0);
+        if (!Number.isNaN(v)) total += v;
+      }
+      if (total <= 0) continue;
+      const bar = topMeta.data[index];
+      if (!bar) continue;
+      ctx.save();
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "600 12px IBM Plex Sans Thai, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(total.toLocaleString("th-TH"), bar.x, bar.y - 4);
+      ctx.restore();
+    }
+  },
+};
+
+function renderChart(canvasId, chartKey, labels, datasets, type = "bar", stacked = false, showBarLabels = false, showStackTotals = false) {
   const ctx = $(canvasId).getContext("2d");
   if (state.charts[chartKey]) state.charts[chartKey].destroy();
+  const plugins = [];
+  if (showStackTotals) plugins.push(stackedTotalLabelsPlugin);
+  else if (showBarLabels) plugins.push(barValueLabelsPlugin);
   state.charts[chartKey] = new Chart(ctx, {
     type,
     data: { labels, datasets },
-    plugins: showBarLabels ? [barValueLabelsPlugin] : [],
+    plugins,
     options: {
       responsive: true,
       plugins: { legend: { labels: { color: "#8fa3bf" } } },
@@ -321,7 +361,8 @@ function renderDeptChart(rows) {
     .slice(0, 15)
     .sort(compareDeptCode);
   const labels = top.map((r) => r.DEPT_CODE || "-");
-  const stacked = getDocKind() === "all" && top.some((r) => r.leave_total != null || r.ot_total != null);
+  const kind = getDocKind();
+  const stacked = kind === "all" && top.some((r) => r.leave_total != null || r.ot_total != null);
 
   const datasets = stacked
     ? [
@@ -340,7 +381,8 @@ function renderDeptChart(rows) {
       ]
     : [{ label: deptChartLabel(), data: top.map((r) => r.total ?? 0), backgroundColor: "#38bdf8" }];
 
-  renderChart("#chart-dept", "dept", labels, datasets, "bar", stacked, !stacked);
+  // ทั้งหมด → label = ผลรวมทั้งแท่ง | L หรือ T → label = ค่าของประเภทนั้น
+  renderChart("#chart-dept", "dept", labels, datasets, "bar", stacked, !stacked, stacked);
 }
 
 function renderTypeChart(rows) {
