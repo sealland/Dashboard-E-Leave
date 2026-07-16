@@ -206,4 +206,190 @@ router.get("/emc", async (req, res) => {
   }
 });
 
+router.get("/emc/workforce", async (_req, res) => {
+  try {
+    const pool = await getPool();
+
+    const result = await pool.request().query(`
+      SELECT
+        RTRIM(LTRIM(ISNULL(emp_gender, ''))) AS gender,
+        BIRTH_DATE AS birth_date,
+        RTRIM(LTRIM(ISNULL(BU, ''))) AS bu,
+        RTRIM(LTRIM(ISNULL(DEP, ''))) AS dep,
+        RTRIM(LTRIM(ISNULL(SEC, ''))) AS sec,
+        RTRIM(LTRIM(ISNULL(Child, ''))) AS child,
+        RTRIM(LTRIM(ISNULL(Parent, ''))) AS parent,
+        RTRIM(LTRIM(ISNULL(Company, ''))) AS company
+      FROM dbo.tbl_hr_org
+      WHERE emp_code IS NOT NULL
+        AND LTRIM(RTRIM(emp_code)) <> ''
+    `);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    function ageYears(birth) {
+      if (!birth) return null;
+      const d = birth instanceof Date ? birth : new Date(birth);
+      if (Number.isNaN(d.getTime())) return null;
+      let age = today.getFullYear() - d.getFullYear();
+      const md = today.getMonth() - d.getMonth();
+      if (md < 0 || (md === 0 && today.getDate() < d.getDate())) age -= 1;
+      return age;
+    }
+
+    function generationOf(age) {
+      if (age == null) return null;
+      if (age >= 60 && age <= 77) return "Baby Boom";
+      if (age >= 45 && age <= 59) return "X";
+      if (age >= 28 && age <= 44) return "Y";
+      if (age >= 15 && age <= 27) return "Z";
+      return null;
+    }
+
+    /** จัดกลุ่ม BU สำหรับ treemap ตามสเปก EMC */
+    function mapDisplayBu(row) {
+      const bu = String(row.bu || "").trim();
+      const dep = String(row.dep || "").trim();
+      const sec = String(row.sec || "").trim();
+      const child = String(row.child || "").trim();
+      const parent = String(row.parent || "").trim();
+      const company = String(row.company || "").trim();
+
+      // HRM + MHR
+      if (
+        bu === "HRM" ||
+        bu === "MHR" ||
+        sec === "MHR" ||
+        parent === "MHR" ||
+        child === "MHR"
+      ) {
+        return "HRM";
+      }
+
+      // OCP (แยกจาก KTB — ดู DEP/SEC/Child)
+      if (
+        bu === "OCP" ||
+        dep === "OCP" ||
+        child === "OCP" ||
+        sec === "OCP" ||
+        sec.startsWith("OCP/")
+      ) {
+        return "OCP";
+      }
+
+      // MMT + 998 (และ 999 ถ้ามี)
+      if (
+        bu === "MMT" ||
+        bu === "998" ||
+        bu === "999" ||
+        child === "998" ||
+        child === "999" ||
+        company === "998" ||
+        company === "999"
+      ) {
+        return "MMT";
+      }
+
+      if (bu === "ITM") return "ITM";
+      if (bu === "SMK") return "SMK";
+      if (bu === "FNA") return "FNA";
+      if (bu === "DBS") return "DBS";
+      if (bu === "KTB") return "KTB";
+      if (bu === "ZEN") return "ZEN";
+
+      // อื่นๆ = ผู้บริหาร + SUVANA และ BU ที่ไม่อยู่ในรายการหลัก
+      return "อื่นๆ";
+    }
+
+    let male = 0;
+    let female = 0;
+    const generations = {
+      "Baby Boom": 0,
+      X: 0,
+      Y: 0,
+      Z: 0,
+    };
+    const buCounts = Object.create(null);
+
+    for (const row of result.recordset) {
+      const gender = String(row.gender || "").trim();
+      if (gender === "ชาย") male += 1;
+      else if (gender === "หญิง") female += 1;
+
+      const gen = generationOf(ageYears(row.birth_date));
+      if (gen) generations[gen] += 1;
+
+      const displayBu = mapDisplayBu(row);
+      buCounts[displayBu] = (buCounts[displayBu] || 0) + 1;
+    }
+
+    const genderTotal = male + female;
+    const generationList = ["Baby Boom", "X", "Y", "Z"].map((label) => ({
+      label,
+      count: generations[label],
+    }));
+    const generationTotal = generationList.reduce((s, g) => s + g.count, 0);
+
+    const displayOrder = [
+      "MMT",
+      "SMK",
+      "OCP",
+      "KTB",
+      "HRM",
+      "FNA",
+      "ZEN",
+      "DBS",
+      "ITM",
+      "อื่นๆ",
+    ];
+
+    const buses = Object.entries(buCounts)
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => {
+        const ia = displayOrder.indexOf(a.code);
+        const ib = displayOrder.indexOf(b.code);
+        const ra = ia === -1 ? 999 : ia;
+        const rb = ib === -1 ? 999 : ib;
+        if (ra !== rb) return ra - rb;
+        return b.count - a.count || a.code.localeCompare(b.code, "en");
+      });
+
+    const buTotal = buses.reduce((s, b) => s + b.count, 0);
+
+    res.json({
+      gender: {
+        male,
+        female,
+        total: genderTotal,
+        items: [
+          { key: "male", label: "Male", labelTh: "ชาย", count: male, color: "#7eb8da" },
+          { key: "female", label: "Female", labelTh: "หญิง", count: female, color: "#f0a0b8" },
+        ],
+      },
+      generation: {
+        total: generationTotal,
+        items: generationList,
+      },
+      buses: {
+        total: buTotal,
+        items: buses,
+      },
+      meta: {
+        source: "tbl_hr_org",
+        genderField: "emp_gender",
+        asOf: today.toISOString().slice(0, 10),
+        employeeRows: result.recordset.length,
+        buGroups: {
+          HRM: "HRM + MHR",
+          MMT: "MMT + 998",
+          อื่นๆ: "ผู้บริหาร + SUVANA + BU อื่น",
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

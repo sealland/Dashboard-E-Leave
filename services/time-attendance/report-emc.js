@@ -35,7 +35,28 @@ const els = {
   body: document.getElementById("report-body"),
   chart: document.getElementById("emc-chart"),
   chartLegend: document.getElementById("emc-chart-legend"),
+  workforce: document.getElementById("workforce-body"),
 };
+
+/** สีช่อง treemap ตามรหัสกลุ่ม */
+const BU_TREEMAP_COLOR_BY_CODE = {
+  MMT: "#e8c547",
+  SMK: "#7ec8e3",
+  OCP: "#9b7bb8",
+  KTB: "#5b8def",
+  HRM: "#5ec8c8",
+  FNA: "#6fbf73",
+  ZEN: "#f0b429",
+  DBS: "#3d9b8f",
+  ITM: "#6b5b95",
+  อื่นๆ: "#e07a5f",
+};
+
+const BU_TREEMAP_COLORS = Object.values(BU_TREEMAP_COLOR_BY_CODE);
+const BU_TREEMAP_OTHER_COLOR = BU_TREEMAP_COLOR_BY_CODE["อื่นๆ"];
+
+let workforceCache = null;
+
 
 function parseFilters() {
   const params = new URLSearchParams(window.location.search);
@@ -84,6 +105,250 @@ async function fetchEmc(filters) {
     throw new Error(payload.error || "ไม่สามารถโหลดรายงาน EMC ได้");
   }
   return payload;
+}
+
+async function fetchWorkforce() {
+  const response = await fetch(withBasePath("/api/emc/workforce"));
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลด Workforce Overview ได้");
+  }
+  return payload;
+}
+
+function buildDonutSlices(entries, total) {
+  const radius = 90;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  return entries
+    .map((item) => {
+      const length = total ? (item.count / total) * circumference : 0;
+      const segment = `
+        <circle cx="120" cy="120" r="${radius}" fill="none" style="stroke:${item.color}"
+          stroke-width="28" stroke-dasharray="${length} ${circumference - length}"
+          stroke-dashoffset="${-offset}" transform="rotate(-90 120 120)"></circle>`;
+      offset += length;
+      return segment;
+    })
+    .join("");
+}
+
+function renderGenderDonut(gender) {
+  const total = gender.total || 0;
+  const items = gender.items.filter((item) => item.count > 0);
+  if (!total || !items.length) {
+    return `<div class="workforce-card"><h3>Total Employee By Gender</h3><div class="empty-state">ไม่มีข้อมูลเพศ</div></div>`;
+  }
+
+  const legend = items
+    .map((item) => {
+      const pct = total ? Math.round((item.count / total) * 100) : 0;
+      return `
+        <div class="wf-gender-legend-item">
+          <span class="emc-chart-swatch" style="background:${item.color}"></span>
+          <div>
+            <strong>${escapeHtml(item.label)}</strong>
+            <span>${formatNumber(item.count)} · ${pct}%</span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="workforce-card">
+      <h3>Total Employee By Gender</h3>
+      <div class="wf-gender">
+        <div class="donut-wrap wf-donut">
+          <svg viewBox="0 0 240 240" aria-hidden="true">
+            <circle cx="120" cy="120" r="90" fill="none" stroke="#edf2f8" stroke-width="28"></circle>
+            ${buildDonutSlices(items, total)}
+          </svg>
+          <div class="donut-center">
+            <div>
+              <strong>${formatNumber(total)}</strong>
+              <span>พนักงาน</span>
+            </div>
+          </div>
+        </div>
+        <div class="wf-gender-legend">${legend}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGenerationBars(generation) {
+  const items = generation.items || [];
+  const max = Math.max(...items.map((item) => item.count), 1);
+  const axisMax = Math.ceil(max / 50) * 50 || 50;
+  const ticks = [];
+  for (let t = 0; t <= axisMax; t += 50) ticks.push(t);
+
+  const rows = items
+    .map((item) => {
+      const widthPct = (item.count / axisMax) * 100;
+      return `
+        <div class="wf-gen-row">
+          <div class="wf-gen-label">${escapeHtml(item.label)}</div>
+          <div class="wf-gen-track">
+            <div class="wf-gen-bar" style="width:${widthPct}%"></div>
+            <span class="wf-gen-value">${formatNumber(item.count)}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="workforce-card">
+      <h3>Total Employee By Generation</h3>
+      <div class="wf-gen">
+        ${rows}
+        <div class="wf-gen-axis">
+          <div class="wf-gen-label" aria-hidden="true"></div>
+          <div class="wf-gen-axis-track">
+            ${ticks
+              .map(
+                (tick) => `
+                  <span class="emc-hbar-tick" style="left:${(tick / axisMax) * 100}%">
+                    <span class="emc-hbar-tick-line"></span>
+                    <span class="emc-hbar-tick-label">${formatNumber(tick)}</span>
+                  </span>
+                `,
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function worstAspect(row, length) {
+  if (!row.length) return Infinity;
+  const sum = row.reduce((s, item) => s + item.area, 0);
+  let max = 0;
+  let min = Infinity;
+  for (const item of row) {
+    max = Math.max(max, item.area);
+    min = Math.min(min, item.area);
+  }
+  return Math.max((length * length * max) / (sum * sum), (sum * sum) / (length * length * min));
+}
+
+/** Squarified treemap — คืนพิกัดเปอร์เซ็นต์ (x,y,w,h) */
+function layoutSquarifiedTreemap(items, width = 100, height = 100) {
+  const total = items.reduce((s, item) => s + item.count, 0);
+  if (!total || !items.length) return [];
+
+  const nodes = items.map((item, index) => ({
+    ...item,
+    area: (item.count / total) * width * height,
+    color: BU_TREEMAP_COLORS[index % BU_TREEMAP_COLORS.length],
+  }));
+  const result = [];
+
+  function layoutRow(row, x, y, w, h, horizontal) {
+    const sum = row.reduce((s, item) => s + item.area, 0);
+    if (horizontal) {
+      const rowH = sum / w;
+      let cx = x;
+      for (const item of row) {
+        const iw = item.area / rowH;
+        result.push({ ...item, x: cx, y, w: iw, h: rowH });
+        cx += iw;
+      }
+      return { x, y: y + rowH, w, h: h - rowH };
+    }
+    const rowW = sum / h;
+    let cy = y;
+    for (const item of row) {
+      const ih = item.area / rowW;
+      result.push({ ...item, x, y: cy, w: rowW, h: ih });
+      cy += ih;
+    }
+    return { x: x + rowW, y, w: w - rowW, h };
+  }
+
+  function squarify(remaining, x, y, w, h) {
+    if (!remaining.length || w <= 0 || h <= 0) return;
+    const horizontal = w >= h;
+    const side = horizontal ? w : h;
+    let row = [];
+    let rest = [...remaining];
+
+    while (rest.length) {
+      const next = rest[0];
+      const candidate = [...row, next];
+      if (!row.length || worstAspect(row, side) >= worstAspect(candidate, side)) {
+        row = candidate;
+        rest = rest.slice(1);
+        if (!rest.length) {
+          layoutRow(row, x, y, w, h, horizontal);
+        }
+      } else {
+        const box = layoutRow(row, x, y, w, h, horizontal);
+        squarify(rest, box.x, box.y, box.w, box.h);
+        return;
+      }
+    }
+  }
+
+  squarify(nodes, 0, 0, width, height);
+  return result;
+}
+
+function renderBuTreemap(buses) {
+  const items = [...(buses.items || [])].filter((item) => item.count > 0);
+  if (!items.length) {
+    return `<div class="workforce-card workforce-card--treemap"><h3>Total Employee By BU</h3><div class="empty-state">ไม่มีข้อมูล BU</div></div>`;
+  }
+
+  const total = buses.total || items.reduce((s, i) => s + i.count, 0);
+  const gap = 0.4;
+  // เรียงตามจำนวนสำหรับ layout ให้ช่องใหญ่ขึ้นก่อน
+  const layoutItems = [...items].sort((a, b) => b.count - a.count || a.code.localeCompare(b.code, "th"));
+  const layout = layoutSquarifiedTreemap(layoutItems, 100, 100).map((tile) => ({
+    ...tile,
+    color: BU_TREEMAP_COLOR_BY_CODE[tile.code] || tile.color || BU_TREEMAP_OTHER_COLOR,
+  }));
+
+  const tiles = layout
+    .map((tile) => {
+      const left = tile.x + gap / 2;
+      const top = tile.y + gap / 2;
+      const width = Math.max(0, tile.w - gap);
+      const height = Math.max(0, tile.h - gap);
+      const fontScale = Math.min(1.35, Math.max(0.85, Math.sqrt(tile.count) / 10));
+      return `
+        <div
+          class="wf-tree-tile"
+          style="left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:${tile.color};--tile-scale:${fontScale}"
+          title="${escapeHtml(tile.code)}: ${formatNumber(tile.count)}"
+        >
+          <strong>${escapeHtml(tile.code)}</strong>
+          <span>${formatNumber(tile.count)}</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="workforce-card workforce-card--treemap">
+      <h3>Total Employee By BU <span class="wf-subtotal">(${formatNumber(total)})</span></h3>
+      <div class="wf-treemap" role="img" aria-label="Treemap พนักงานแยกตาม BU">${tiles}</div>
+      <p class="wf-treemap-note">HRM รวม MHR · MMT รวม 998 · อื่นๆ = ผู้บริหาร + SUVANA</p>
+    </div>
+  `;
+}
+
+function renderWorkforce(payload) {
+  if (!els.workforce) return;
+  els.workforce.innerHTML = `
+    ${renderGenderDonut(payload.gender)}
+    ${renderGenerationBars(payload.generation)}
+    ${renderBuTreemap(payload.buses)}
+  `;
 }
 
 function formatCell(value) {
@@ -299,13 +564,25 @@ async function refresh() {
     els.status.classList.toggle("is-ok", ok);
     els.status.classList.toggle("is-bad", !ok);
 
-    const payload = await fetchEmc(filters);
+    const tasks = [fetchEmc(filters)];
+    if (!workforceCache) tasks.push(fetchWorkforce());
+    const results = await Promise.all(tasks);
+    const payload = results[0];
+    if (results[1]) {
+      workforceCache = results[1];
+      renderWorkforce(workforceCache);
+    } else if (workforceCache) {
+      renderWorkforce(workforceCache);
+    }
     renderChart(payload);
     renderTable(payload);
   } catch (error) {
     els.body.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     if (els.chart) {
       els.chart.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
+    if (els.workforce && !workforceCache) {
+      els.workforce.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     els.status.textContent = "โหลดข้อมูลไม่สำเร็จ";
     els.status.classList.add("is-bad");
