@@ -192,26 +192,102 @@ select {
 }
 
 .ot-page .main {
+  padding: 20px 24px 32px;
   background:
-    radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 22rem),
-    linear-gradient(180deg, #fffaf6 0, #eef3fa 22rem);
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 22rem),
+    linear-gradient(180deg, #fffaf6 0, #f4f7fb 24rem);
+}
+
+.ot-page .page-head {
+  margin-bottom: 18px;
+  gap: 14px;
+}
+
+.ot-page h1 {
+  font-size: clamp(1.2rem, 1.5vw + 0.7rem, 1.55rem);
+  margin-bottom: 2px;
+}
+
+.ot-page .eyebrow {
+  font-size: 0.78rem;
+  margin-bottom: 2px;
+}
+
+.ot-page .page-subtitle,
+.ot-page .connection-status {
+  font-size: 0.84rem;
+  margin-top: 2px;
+}
+
+.ot-page .toolbar {
+  gap: 8px;
+}
+
+.ot-page .control {
+  gap: 4px;
+}
+
+.ot-page .control span {
+  font-size: 0.78rem;
+}
+
+.ot-page .control input,
+.ot-page .control select {
+  padding: 6px 8px;
+  font-size: 0.86rem;
+}
+
+.ot-page .panel,
+.ot-page .report-section {
+  padding: 20px 22px;
+  border-radius: 16px;
+  margin-bottom: 0;
+  box-shadow: 0 8px 24px rgba(20, 50, 95, 0.06);
+}
+
+.ot-page .panel-head {
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.ot-page .panel-head h2,
+.ot-page .report-section .panel-head h2 {
+  font-size: 1.08rem;
+  line-height: 1.35;
+}
+
+.ot-page .panel-head p,
+.ot-page .report-section .panel-head p {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.ot-page th,
+.ot-page td {
+  padding: 10px 12px;
+  font-size: 0.88rem;
+}
+
+.ot-page .compact {
+  max-height: 280px;
 }
 
 .ot-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
-  gap: 12px;
-  margin-bottom: 12px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.9fr);
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .ot-hero-main,
 .ot-hero-side {
-  border-radius: 22px;
-  box-shadow: var(--shadow);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(20, 50, 95, 0.08);
 }
 
 .ot-hero-main {
-  padding: 22px 24px;
+  padding: 18px 20px;
   color: #fff;
   background:
     radial-gradient(circle at top right, rgba(245, 158, 11, 0.55), transparent 11rem),
@@ -220,94 +296,100 @@ select {
 
 .ot-hero-kicker,
 .ot-hero-side-label {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .ot-hero-main h2 {
   margin: 0;
-  font-size: clamp(1.55rem, 2vw, 2.2rem);
-  line-height: 1.15;
+  font-size: clamp(1.05rem, 1.2vw, 1.35rem);
+  line-height: 1.25;
 }
 
 .ot-hero-copy {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   max-width: 42rem;
+  font-size: 0.84rem;
+  line-height: 1.4;
   color: rgba(255, 255, 255, 0.82);
 }
 
 .ot-hero-alerts {
-  margin-top: 18px;
+  margin-top: 10px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .ot-alert-card {
-  padding: 14px 16px;
-  border-radius: 16px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.09);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .ot-alert-label {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.65);
 }
 
 .ot-alert-card strong {
   display: block;
-  margin-top: 5px;
-  font-size: 1.08rem;
+  margin-top: 2px;
+  font-size: 0.92rem;
   color: #fff7ed;
 }
 
 .ot-hero-side {
-  padding: 18px;
+  padding: 16px;
   background: linear-gradient(180deg, #fff 0, #fff7ed 100%);
   border: 1px solid #fed7aa;
 }
 
 .stats-grid--hero {
-  margin-top: 6px;
+  margin-top: 4px;
+  gap: 8px;
 }
 
 .ot-page .stat-card {
   position: relative;
   overflow: hidden;
+  padding: 10px 10px 8px;
 }
 
 .ot-page .stat-card::before {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: 4px;
+  width: 3px;
   background: linear-gradient(180deg, var(--ot-danger), var(--ot-warn));
 }
 
-.ot-page .stat-card {
-  padding: 14px 14px 10px;
-}
-
 .ot-page .stat-title {
-  font-size: 0.84rem;
-  line-height: 1.25;
+  font-size: 0.76rem;
+  line-height: 1.2;
 }
 
 .ot-page .stat-value {
-  gap: 6px;
-  font-size: clamp(1.35rem, 1.8vw + 0.55rem, 1.8rem);
-  margin-top: 3px;
+  gap: 4px;
+  font-size: clamp(1.1rem, 1.2vw + 0.5rem, 1.4rem);
+  margin-top: 2px;
 }
 
 .ot-page .stat-unit {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 600;
+}
+
+.ot-page .stat-icon {
+  width: 34px;
+  height: 34px;
+  font-size: 0.85rem;
 }
 
 .menu-grid {
@@ -651,21 +733,21 @@ h2 {
 .ot-summary-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 16px;
+  margin-bottom: 24px;
   align-items: start;
 }
 
 .ot-summary-row .panel-head h2 {
-  font-size: 1.05rem;
+  font-size: 0.95rem;
 }
 
 .ot-summary-row .panel-head p {
-  font-size: 0.84rem;
+  font-size: 0.78rem;
 }
 
 .ot-summary-row .table-wrap.compact table {
-  font-size: 0.86rem;
+  font-size: 0.8rem;
 }
 
 .ot-page .panel {
@@ -679,6 +761,134 @@ h2 {
 
 .ot-page .panel-head p {
   color: #7c5c48;
+}
+
+.ot-page .branch-chart-content,
+.ot-page .branch-combined-content,
+.ot-page .department-bars {
+  min-height: 0;
+}
+
+.ot-page .report-list {
+  gap: 12px;
+}
+
+.ot-page .loading-banner {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+/* —— OT zones (breathable section grouping) —— */
+.ot-zone {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.ot-zone-head {
+  display: grid;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.ot-zone-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a6b4f;
+}
+
+.ot-zone-desc {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.ot-zone--branch {
+  gap: 20px;
+}
+
+.ot-zone--branch .panel-branch-chart,
+.ot-zone--branch .panel-branch-combined {
+  margin-bottom: 0;
+}
+
+.ot-page .panel-report-people {
+  padding-bottom: 22px;
+}
+
+.ot-page .panel-report-people .report-person {
+  border-radius: 14px;
+  border: 1px solid #eadfd4;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(20, 50, 95, 0.04);
+}
+
+.ot-page .report-toolbar {
+  padding-bottom: 6px;
+}
+
+.ot-page .report-toolbar-meta strong {
+  font-size: 0.84rem;
+}
+
+.ot-page .report-toolbar-meta span,
+.ot-page .report-page-size,
+.ot-page .report-page-indicator,
+.ot-page .report-page-btn {
+  font-size: 0.72rem;
+}
+
+.ot-page .report-page-btn {
+  padding: 4px 9px;
+}
+
+.ot-page .report-cards {
+  gap: 6px;
+}
+
+.ot-page .report-person-head {
+  padding: 10px 12px;
+  gap: 8px;
+}
+
+.ot-page .report-person-head strong {
+  font-size: 0.86rem;
+}
+
+.ot-page .report-meta {
+  font-size: 0.74rem;
+  margin-top: 4px;
+}
+
+.ot-page .report-person-org,
+.ot-page .report-person-days {
+  font-size: 0.72rem;
+}
+
+.ot-page .report-person-stats {
+  font-size: 0.74rem;
+}
+
+.ot-page .report-person-stats strong {
+  font-size: 0.78rem;
+}
+
+.ot-page .report-toggle {
+  font-size: 0.72rem;
+}
+
+.ot-page .report-person-body {
+  padding: 0 12px 12px;
+}
+
+.ot-page .report-person-body h3 {
+  margin: 10px 0 6px;
+  font-size: 0.82rem;
 }
 
 .charts-row .panel-head {
@@ -747,7 +957,7 @@ h2 {
 
 .department-bars {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .line-chart-card {
@@ -758,7 +968,7 @@ h2 {
 .branch-trend-board {
   position: relative;
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .branch-trend-summary {
@@ -768,15 +978,15 @@ h2 {
 
 .branch-trend-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 
 .branch-trend-row {
   display: grid;
-  grid-template-columns: minmax(0, 108px) minmax(0, 1fr) minmax(0, 148px);
-  gap: 12px;
+  grid-template-columns: minmax(0, 128px) minmax(0, 1fr) minmax(0, 168px);
+  gap: 16px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 14px 16px;
   border-radius: 14px;
   background: linear-gradient(180deg, #fff 0, #fffaf6 100%);
   border: 1px solid #eadfd4;
@@ -820,13 +1030,27 @@ h2 {
 
 .branch-trend-value-label {
   fill: #7c5c48;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 7px;
+  font-weight: 600;
+}
+
+.ot-page .branch-trend-value-label {
+  font-size: 6.5px;
+  font-weight: 600;
+}
+
+.ot-page .branch-chart-label {
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+}
+
+.ot-page .line-chart-end-label {
+  font-size: 9px;
 }
 
 .branch-trend-stats {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   justify-items: end;
   text-align: right;
 }
@@ -879,6 +1103,31 @@ h2 {
   gap: 18px;
 }
 
+.branch-combined-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.branch-combined-section--compact .branch-chart-label {
+  font-size: 0.82rem;
+}
+
+.branch-combined-wrap--compact .line-chart-legend {
+  gap: 6px 10px;
+}
+
+.branch-combined-wrap--compact .line-chart-legend-item {
+  font-size: 0.72rem;
+}
+
+@media (max-width: 960px) {
+  .branch-combined-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
 .branch-combined-content {
   display: grid;
   gap: 18px;
@@ -890,8 +1139,9 @@ h2 {
 }
 
 .branch-combined-note {
-  margin: 0;
-  font-size: 0.78rem;
+  margin: 0 0 8px;
+  font-size: 0.84rem;
+  line-height: 1.45;
   color: #7c5c48;
 }
 
@@ -1331,12 +1581,93 @@ tbody tr:hover {
 }
 
 .report-section {
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 .report-list {
   display: grid;
   gap: 12px;
+}
+
+.report-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+
+.report-toolbar-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.report-toolbar-meta strong {
+  font-size: 0.92rem;
+  color: var(--ot-deep);
+}
+
+.report-toolbar-meta span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.report-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.report-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.report-page-size select {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  color: var(--text);
+}
+
+.report-pagination-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-page-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--blue);
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.report-page-indicator {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.report-cards {
+  display: grid;
+  gap: 8px;
 }
 
 .report-person {
@@ -1347,10 +1678,10 @@ tbody tr:hover {
 .report-person-head {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 88px 132px;
+  gap: 10px;
   align-items: center;
-  padding: 16px 18px;
+  padding: 12px 14px;
   border: 0;
   background: #fff;
   text-align: left;
@@ -1365,38 +1696,75 @@ tbody tr:hover {
   border-bottom: 1px solid var(--line);
 }
 
+.report-person-ident {
+  min-width: 0;
+}
+
+.report-person-ident strong {
+  display: block;
+}
+
 .report-meta {
   display: block;
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 400;
+  line-height: 1.35;
+}
+
+.report-person-org {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: #5f6b7a;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.report-person-org span,
+.report-person-days {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-person-days {
+  color: #9a6b4f;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: right;
 }
 
 .report-person-stats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-weight: 700;
+  gap: 2px;
+  align-items: flex-end;
   color: var(--color-late);
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   text-align: right;
+}
+
+.report-person-stats strong {
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .report-toggle {
   color: var(--blue);
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .report-person-body {
-  padding: 0 18px 18px;
+  padding: 0 14px 14px;
 }
 
 .report-person-body h3 {
-  margin: 16px 0 8px;
-  font-size: 1rem;
+  margin: 12px 0 6px;
+  font-size: 0.9rem;
 }
 
 .record-table code {
@@ -1510,6 +1878,10 @@ tbody tr:hover {
   .donut-wrap {
     width: min(100%, 160px);
   }
+
+  .report-person-head {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 76px 112px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1547,6 +1919,18 @@ tbody tr:hover {
 
   .branch-trend-axis-labels {
     grid-column: 1;
+  }
+
+  .report-person-head {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .report-person-days,
+  .report-person-stats {
+    text-align: left;
+    justify-items: start;
+    align-items: flex-start;
   }
 
   .branch-bar-stats {
@@ -2081,4 +2465,297 @@ tbody tr:hover {
   .workforce-card--treemap {
     min-height: 280px;
   }
+}
+
+/* —— OT × ZHR_PP productivity —— */
+.pp-productivity {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.pp-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pp-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.pp-swatch--people { background: #1d4ed8; }
+.pp-swatch--steel { background: #c62828; }
+.pp-swatch--ot { background: #9ca3af; }
+.pp-swatch--line {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #1d4ed8;
+}
+
+.pp-combo-wrap {
+  width: 100%;
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 12px 12px;
+}
+
+.pp-combo-svg {
+  display: block;
+  width: 100%;
+  min-width: 600px;
+  height: auto;
+  max-height: 300px;
+}
+
+.pp-grid {
+  stroke: #e8eef5;
+  stroke-width: 1;
+}
+
+.pp-axis-base {
+  stroke: #c8d5e6;
+  stroke-width: 1.5;
+}
+
+.pp-axis-label {
+  fill: #6b7c93;
+  font-size: 9px;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+.pp-axis-label--right {
+  fill: #1d4ed8;
+}
+
+.pp-axis-title {
+  fill: #6b7c93;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+.pp-axis-title--right {
+  fill: #1d4ed8;
+}
+
+.pp-svg-bar--steel { fill: #c62828; }
+.pp-svg-bar--ot { fill: #9ca3af; }
+
+.pp-svg-bar-label {
+  fill: #111827;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+.pp-svg-bar-label--inside-steel,
+.pp-svg-bar-label--inside-ot {
+  fill: #111827;
+}
+
+.pp-svg-x {
+  fill: #111827;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+.pp-people-line {
+  stroke: #1d4ed8;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.pp-people-dot {
+  fill: #1d4ed8;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.pp-people-label {
+  fill: #111827;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+.pp-table {
+  width: 100%;
+  font-size: 0.78rem;
+}
+
+.pp-table th,
+.pp-table td {
+  text-align: right;
+  padding: 5px 6px;
+}
+
+.pp-table th:first-child,
+.pp-table td:first-child,
+.pp-table tbody th {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pp-table--ratio {
+  background: #fce7f3;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pp-table--ratio th,
+.pp-table--ratio td {
+  border-bottom-color: #f5c6d8;
+}
+
+.pp-cell--good {
+  background: #bbf7d0 !important;
+  font-weight: 700;
+}
+
+.pp-cell--bad {
+  color: #c62828;
+  font-weight: 700;
+}
+
+/* —— OT page comfortable layout (analytics & drill-down) —— */
+.ot-page .chart-tabs {
+  gap: 6px;
+  padding: 5px;
+}
+
+.ot-page .chart-tab {
+  padding: 8px 16px;
+  font-size: 0.86rem;
+}
+
+.ot-page .branch-trend-board,
+.ot-page .branch-combined-board,
+.ot-page .branch-combined-content,
+.ot-page .line-chart-card,
+.ot-page .branch-trend-list {
+  gap: 14px;
+}
+
+.ot-page .branch-trend-row {
+  padding: 14px 16px;
+  border-radius: 14px;
+  gap: 16px;
+}
+
+.ot-page .branch-trend-meta strong,
+.ot-page .branch-trend-total {
+  font-size: 0.92rem;
+}
+
+.ot-page .branch-trend-meta span,
+.ot-page .branch-trend-peak,
+.ot-page .branch-trend-change,
+.ot-page .branch-trend-summary,
+.ot-page .branch-trend-axis-labels {
+  font-size: 0.8rem;
+}
+
+.ot-page .branch-trend-axis {
+  gap: 16px;
+  padding: 4px 16px 6px;
+  grid-template-columns: minmax(0, 128px) minmax(0, 1fr) minmax(0, 168px);
+}
+
+.ot-page .branch-trend-mini {
+  max-height: 76px;
+}
+
+.ot-page .branch-trend-value-label {
+  font-size: 7.5px;
+}
+
+.ot-page .line-chart-svg {
+  max-height: 260px;
+}
+
+.ot-page .line-chart-axis {
+  font-size: 12px;
+}
+
+.ot-page .line-chart-legend {
+  font-size: 0.82rem;
+  gap: 10px 16px;
+}
+
+.ot-page .branch-combined-pair {
+  gap: 20px;
+}
+
+.ot-page .branch-combined-section--compact .branch-chart-label {
+  font-size: 0.88rem;
+  margin-bottom: 8px;
+}
+
+.ot-page .panel-dept-chart .department-bars {
+  gap: 6px;
+}
+
+.ot-page .panel-dept-chart .dept-row {
+  grid-template-columns: minmax(0, 108px) minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 2px 0;
+  align-items: center;
+}
+
+.ot-page .panel-dept-chart .dept-name {
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.ot-page .panel-dept-chart .dept-track {
+  height: 10px;
+}
+
+.ot-page .panel-dept-chart .dept-metrics {
+  font-size: 0.72rem;
+  color: #7c5c48;
+  padding-top: 0;
+}
+
+.ot-page .pp-productivity {
+  gap: 16px;
+}
+
+.ot-page .pp-legend {
+  font-size: 0.84rem;
+  gap: 10px 16px;
+}
+
+.ot-page .pp-combo-wrap {
+  padding: 16px 14px 14px;
+}
+
+.ot-page .pp-combo-svg {
+  min-width: 600px;
+  max-height: 300px;
+}
+
+.ot-page .pp-table {
+  font-size: 0.84rem;
+}
+
+.ot-page .pp-table th,
+.ot-page .pp-table td {
+  padding: 8px 10px;
 }

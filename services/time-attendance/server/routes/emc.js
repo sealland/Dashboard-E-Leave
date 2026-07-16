@@ -17,6 +17,23 @@ const METRIC_DEFS = [
 /** BU ที่ไม่นำมานับใน EMC (ทั้งคอลัมน์ / headcount / Total) */
 const EXCLUDED_BUS = new Set(["BOD", "CEO", "COO", "SUVANA"]);
 
+function mapEmcBu(row) {
+  const bu = String(row.bu || row.BU || "").trim();
+  const dep = String(row.dep || row.DEP || "").trim();
+  const sec = String(row.sec || row.SEC || "").trim();
+
+  if (
+    bu === "OCP" ||
+    dep === "OCP" ||
+    sec === "OCP" ||
+    sec.startsWith("OCP/")
+  ) {
+    return "OCP";
+  }
+
+  return bu;
+}
+
 function monthRange(year, month) {
   const y = Number(year);
   const m = Number(month);
@@ -75,22 +92,33 @@ router.get("/emc", async (req, res) => {
     const headcountResult = await pool.request().query(`
       SELECT
         RTRIM(LTRIM(BU)) AS bu,
+        RTRIM(LTRIM(ISNULL(DEP, ''))) AS dep,
+        RTRIM(LTRIM(ISNULL(SEC, ''))) AS sec,
         COUNT(*) AS headcount
       FROM dbo.tbl_hr_org
       WHERE emp_code IS NOT NULL
         AND LTRIM(RTRIM(emp_code)) <> ''
         AND BU IS NOT NULL
         AND LTRIM(RTRIM(BU)) <> ''
-      GROUP BY RTRIM(LTRIM(BU))
-      ORDER BY RTRIM(LTRIM(BU))
+      GROUP BY
+        RTRIM(LTRIM(BU)),
+        RTRIM(LTRIM(ISNULL(DEP, ''))),
+        RTRIM(LTRIM(ISNULL(SEC, '')))
     `);
 
-    const buses = headcountResult.recordset
-      .map((row) => ({
-        code: String(row.bu || "").trim(),
-        headcount: Number(row.headcount) || 0,
+    const headcountByDisplayBu = Object.create(null);
+    for (const row of headcountResult.recordset) {
+      const code = mapEmcBu(row);
+      const headcount = Number(row.headcount) || 0;
+      if (!code || headcount <= 0 || EXCLUDED_BUS.has(code)) continue;
+      headcountByDisplayBu[code] = (headcountByDisplayBu[code] || 0) + headcount;
+    }
+
+    const buses = Object.entries(headcountByDisplayBu)
+      .map(([code, headcount]) => ({
+        code,
+        headcount,
       }))
-      .filter((row) => row.code && row.headcount > 0 && !EXCLUDED_BUS.has(row.code))
       .sort((a, b) => a.code.localeCompare(b.code, "en"));
 
     const totalHeadcount = buses.reduce((sum, bu) => sum + bu.headcount, 0);
@@ -103,6 +131,8 @@ router.get("/emc", async (req, res) => {
     const txResult = await request.query(`
       SELECT
         RTRIM(LTRIM(ISNULL(mapped.BU, ''))) AS bu,
+        RTRIM(LTRIM(ISNULL(mapped.DEP, ''))) AS dep,
+        RTRIM(LTRIM(ISNULL(mapped.SEC, ''))) AS sec,
         RTRIM(LTRIM(c.DEPT_CODE)) AS dept_code,
         RTRIM(LTRIM(c.DF_LEAVE)) AS DF_LEAVE,
         c.DF_CODE,
@@ -110,7 +140,10 @@ router.get("/emc", async (req, res) => {
         CAST(c.TMR_QTY_T AS float) AS TMR_QTY_T
       FROM dbo.vw_employee_checkin c
       OUTER APPLY (
-        SELECT TOP 1 RTRIM(LTRIM(z.BU)) AS BU
+        SELECT TOP 1
+          RTRIM(LTRIM(z.BU)) AS BU,
+          RTRIM(LTRIM(ISNULL(z.DEP, ''))) AS DEP,
+          RTRIM(LTRIM(ISNULL(z.SEC, ''))) AS SEC
         FROM dbo.ZHR_BU z
         WHERE
           (
@@ -146,7 +179,7 @@ router.get("/emc", async (req, res) => {
       const amount = metricAmount(metricId, row);
       if (!Number.isFinite(amount) || amount === 0) continue;
 
-      const bu = String(row.bu || "").trim();
+      const bu = mapEmcBu(row);
       // ตัด BU ที่ถูก exclude + รายการที่ map ไม่ติดออกจากทุกการคำนวณ (รวม Total)
       if (!bu || !(bu in headcountByBu) || EXCLUDED_BUS.has(bu)) continue;
 

@@ -76,4 +76,129 @@ router.get("/overtime", async (req, res) => {
   }
 });
 
+/**
+ * คน / ปริมาณเหล็ก (ZHR_PP) / ชม.OT รายเดือน + อัตราส่วน productivity
+ * ขอบเขตแผนก: แผนกที่มีใน ZHR_PP (หรือ filter department ถ้าระบุ)
+ */
+router.get("/overtime/pp-productivity", async (req, res) => {
+  const { from, to, df_code: dfCode, department } = req.query;
+
+  if (!from || !to) {
+    res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
+    return;
+  }
+
+  const codes = dfCode && dfCode !== "all" ? [String(dfCode)] : [...OT_DF_CODES];
+
+  try {
+    const pool = await getPool();
+
+    const ppReq = pool.request();
+    ppReq.input("from", sql.Date, from);
+    ppReq.input("to", sql.Date, to);
+    ppReq.input("department", sql.NVarChar(200), department && department !== "all" ? department : null);
+
+    const ppResult = await ppReq.query(`
+      SELECT
+        PP_YEAR AS [year],
+        PP_MONTH AS [month],
+        SUM(CAST(PP_TON AS float)) AS steel_ton
+      FROM dbo.ZHR_PP
+      WHERE DATEFROMPARTS(PP_YEAR, PP_MONTH, 1) >= DATEFROMPARTS(YEAR(@from), MONTH(@from), 1)
+        AND DATEFROMPARTS(PP_YEAR, PP_MONTH, 1) <= DATEFROMPARTS(YEAR(@to), MONTH(@to), 1)
+        AND (@department IS NULL OR DEPT_CODE = @department)
+      GROUP BY PP_YEAR, PP_MONTH
+      ORDER BY PP_YEAR, PP_MONTH
+    `);
+
+    const otReq = pool.request();
+    otReq.input("from", sql.Date, from);
+    otReq.input("to", sql.Date, to);
+    otReq.input("department", sql.NVarChar(200), department && department !== "all" ? department : null);
+    const codeParams = codes.map((_, index) => `@df${index}`).join(", ");
+    codes.forEach((code, index) => {
+      otReq.input(`df${index}`, sql.NVarChar(10), code);
+    });
+
+    const otResult = await otReq.query(`
+      SELECT
+        YEAR(c.TMR_DATE) AS [year],
+        MONTH(c.TMR_DATE) AS [month],
+        COUNT(DISTINCT c.EMP_KEY) AS people,
+        SUM(CAST(c.TMR_QTY_T AS float)) AS ot_hours
+      FROM dbo.vw_employee_checkin c
+      WHERE c.TMR_DATE >= @from AND c.TMR_DATE <= @to
+        AND c.DF_CODE IN (${codeParams})
+        AND (
+          (@department IS NOT NULL AND c.DEPT_CODE = @department)
+          OR (@department IS NULL AND c.DEPT_CODE IN (SELECT DISTINCT DEPT_CODE FROM dbo.ZHR_PP))
+        )
+      GROUP BY YEAR(c.TMR_DATE), MONTH(c.TMR_DATE)
+      ORDER BY YEAR(c.TMR_DATE), MONTH(c.TMR_DATE)
+    `);
+
+    const byKey = new Map();
+
+    function ensure(year, month) {
+      const key = `${year}-${String(month).padStart(2, "0")}`;
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          year: Number(year),
+          month: Number(month),
+          key,
+          people: 0,
+          steelTon: 0,
+          otHours: 0,
+        });
+      }
+      return byKey.get(key);
+    }
+
+    for (const row of ppResult.recordset) {
+      const item = ensure(row.year, row.month);
+      item.steelTon = Number(row.steel_ton) || 0;
+    }
+    for (const row of otResult.recordset) {
+      const item = ensure(row.year, row.month);
+      item.people = Number(row.people) || 0;
+      item.otHours = Number(row.ot_hours) || 0;
+    }
+
+    const months = [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+
+    const enriched = months.map((m) => {
+      const tonPerHr = m.otHours > 0 ? m.steelTon / m.otHours : null;
+      const hrPerTon = m.steelTon > 0 ? m.otHours / m.steelTon : null;
+      return {
+        ...m,
+        tonPerHr,
+        hrPerTon,
+      };
+    });
+
+    const n = enriched.length;
+    const avg = {
+      people: n ? enriched.reduce((s, m) => s + m.people, 0) / n : 0,
+      steelTon: n ? enriched.reduce((s, m) => s + m.steelTon, 0) / n : 0,
+      otHours: n ? enriched.reduce((s, m) => s + m.otHours, 0) / n : 0,
+    };
+    avg.tonPerHr = avg.otHours > 0 ? avg.steelTon / avg.otHours : null;
+    avg.hrPerTon = avg.steelTon > 0 ? avg.otHours / avg.steelTon : null;
+
+    res.json({
+      months: enriched,
+      average: avg,
+      meta: {
+        from,
+        to,
+        df_code: dfCode || "all",
+        department: department && department !== "all" ? department : null,
+        source: { steel: "ZHR_PP.PP_TON", ot: "vw_employee_checkin", people: "distinct EMP_KEY with OT" },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

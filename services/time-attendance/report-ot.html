@@ -150,61 +150,101 @@
           </article>
         </section>
 
-        <section class="panel panel-branch-chart">
-          <div class="panel-head">
-            <div>
-              <h2>เปรียบเทียบรวมชั่วโมง OT ตามสาขา</h2>
-              <p>Curve รายเดือนแยกแต่ละสาขา · scale อิสระ อ่าน trend ได้ทันที</p>
-            </div>
-            <div class="chart-tabs" role="tablist" aria-label="มุมมองกราฟสาขา">
-              <button type="button" class="chart-tab active" data-branch-tab="monthly" role="tab" aria-selected="true">
-                Trend รายเดือน
-              </button>
-              <button type="button" class="chart-tab" data-branch-tab="total" role="tab" aria-selected="false">
-                รวมช่วง
-              </button>
-            </div>
-          </div>
-          <div id="branch-chart-content" class="branch-chart-content"></div>
-        </section>
+        <div class="ot-zone ot-zone--branch">
+          <header class="ot-zone-head">
+            <p class="ot-zone-kicker">วิเคราะห์สาขา</p>
+            <p class="ot-zone-desc">ดู trend รายเดือนและเปรียบเทียบ curve ข้ามสาขาในช่วงที่เลือก</p>
+          </header>
 
-        <section class="panel panel-branch-combined">
-          <div class="panel-head">
-            <div>
-              <h2>เปรียบเทียบ Curve รวมทุกสาขา <span class="chart-badge-test">ทดสอบ</span></h2>
-              <p>ดู trend ข้ามสาขาใน scale เดียวกัน · ชม. จริงแยก MMT · Index 100 เทียบรูปทรง curve</p>
+          <section class="panel panel-branch-chart">
+            <div class="panel-head">
+              <div>
+                <h2>เปรียบเทียบรวมชั่วโมง OT ตามสาขา</h2>
+                <p>Curve รายเดือนแยกแต่ละสาขา · scale อิสระ อ่าน trend ได้ทันที</p>
+              </div>
+              <div class="chart-tabs" role="tablist" aria-label="มุมมองกราฟสาขา">
+                <button type="button" class="chart-tab active" data-branch-tab="monthly" role="tab" aria-selected="true">
+                  Trend รายเดือน
+                </button>
+                <button type="button" class="chart-tab" data-branch-tab="total" role="tab" aria-selected="false">
+                  รวมช่วง
+                </button>
+              </div>
             </div>
-            <div class="chart-tabs" role="tablist" aria-label="มุมมองกราฟรวมสาขา">
-              <button type="button" class="chart-tab active" data-combined-tab="absolute" role="tab" aria-selected="true">
-                ชม. จริง
-              </button>
-              <button type="button" class="chart-tab" data-combined-tab="index" role="tab" aria-selected="false">
-                Index 100
-              </button>
-            </div>
-          </div>
-          <div id="branch-combined-chart" class="branch-combined-content"></div>
-        </section>
+            <div id="branch-chart-content" class="branch-chart-content"></div>
+          </section>
 
-        <section class="panel panel-dept-chart">
-          <div class="panel-head">
-            <div>
-              <h2>เฉลี่ยชม. OT ต่อพนักงาน (แผนก)</h2>
-              <p>เรียงตามเฉลี่ยชม./คน ในช่วงที่เลือก</p>
+          <section class="panel panel-branch-combined">
+            <div class="panel-head">
+              <div>
+                <h2>เปรียบเทียบ Curve รวมทุกสาขา</h2>
+                <p>ชม. จริงแยก MMT กับสาขาอื่น · Index 100 เทียบรูปทรง curve</p>
+              </div>
+              <div class="chart-tabs" role="tablist" aria-label="มุมมองกราฟรวมสาขา">
+                <button type="button" class="chart-tab active" data-combined-tab="absolute" role="tab" aria-selected="true">
+                  ชม. จริง
+                </button>
+                <button type="button" class="chart-tab" data-combined-tab="index" role="tab" aria-selected="false">
+                  Index 100
+                </button>
+              </div>
             </div>
-          </div>
-          <div id="department-bars" class="department-bars"></div>
-        </section>
+            <div id="branch-combined-chart" class="branch-combined-content"></div>
+          </section>
+        </div>
 
-        <section class="report-section">
-          <div class="panel-head">
-            <div>
-              <h2>รายละเอียดรายคน</h2>
-              <p>กดที่แต่ละรายการเพื่อดูสรุปรายวันและข้อมูลต้นทาง</p>
+        <div class="ot-zone ot-zone--dept">
+          <header class="ot-zone-head">
+            <p class="ot-zone-kicker">วิเคราะห์แผนก</p>
+            <p class="ot-zone-desc">หาแผนกที่มีภาระ OT ต่อคนสูงกว่าค่าเฉลี่ย</p>
+          </header>
+
+          <section class="panel panel-dept-chart">
+            <div class="panel-head">
+              <div>
+                <h2>เฉลี่ยชม. OT ต่อพนักงาน (แผนก)</h2>
+                <p>เรียงตามเฉลี่ยชม./คน ในช่วงที่เลือก</p>
+              </div>
             </div>
-          </div>
-          <div id="report-body" class="report-list"></div>
-        </section>
+            <div id="department-bars" class="department-bars"></div>
+          </section>
+        </div>
+
+        <div class="ot-zone ot-zone--productivity">
+          <header class="ot-zone-head">
+            <p class="ot-zone-kicker">ประสิทธิภาพการผลิต</p>
+            <p class="ot-zone-desc">เทียบคน · ปริมาณเหล็ก · ชั่วโมง OT รายเดือน</p>
+          </header>
+
+          <section class="panel panel-pp-productivity">
+            <div class="panel-head">
+              <div>
+                <h2>คน · ปริมาณเหล็ก · โอที (รายเดือน)</h2>
+                <p>แท่ง = เหล็ก + OT (แกนซ้าย) · เส้น = คน (แกนขวา) · เหล็กจาก ZHR_PP</p>
+              </div>
+            </div>
+            <div id="pp-productivity" class="pp-productivity">
+              <div class="empty-state">กำลังโหลด...</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="ot-zone ot-zone--people">
+          <header class="ot-zone-head">
+            <p class="ot-zone-kicker">รายละเอียด</p>
+            <p class="ot-zone-desc">เปิดดูสรุปรายวันและข้อมูลต้นทางของแต่ละคน</p>
+          </header>
+
+          <section class="panel panel-report-people report-section">
+            <div class="panel-head">
+              <div>
+                <h2>รายละเอียดรายคน</h2>
+                <p>กดที่แต่ละรายการเพื่อดูสรุปรายวันและข้อมูลต้นทาง</p>
+              </div>
+            </div>
+            <div id="report-body" class="report-list"></div>
+          </section>
+        </div>
       </main>
     </div>
 

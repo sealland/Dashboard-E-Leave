@@ -5,7 +5,7 @@ import {
   normalizeBranchCode,
 } from "./shared/ot-aggregate.js";
 import { getOvertimeLabel, OT_DF_CODES } from "./shared/df-code-map.js";
-import { fetchOvertime } from "./shared/api.js";
+import { fetchOvertime, fetchPpProductivity } from "./shared/api.js";
 import {
   getDefaultRange,
   parseUrlFilters,
@@ -39,6 +39,7 @@ const els = {
   rangeLabel: document.getElementById("range-label"),
   loadingBanner: document.getElementById("loading-banner"),
   connectionStatus: document.getElementById("connection-status"),
+  ppProductivity: document.getElementById("pp-productivity"),
 };
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -52,6 +53,8 @@ const state = {
   branchChartTab: "monthly",
   combinedChartTab: "absolute",
   branchGroups: [],
+  reportPage: 1,
+  reportPageSize: 10,
 };
 
 function setLoading(isLoading) {
@@ -241,7 +244,7 @@ function renderGroupBars(groups) {
               <div class="dept-segment late" style="width:${width}%"></div>
             </div>
           </div>
-          <div>${formatNumber(row.avgHoursPerEmployee, 2)} ชม./คน · ${formatNumber(row.totalHours, 2)} ชม. รวม</div>
+          <div class="dept-metrics">${formatNumber(row.avgHoursPerEmployee, 2)} ชม./คน · ${formatNumber(row.totalHours, 2)} ชม. รวม</div>
         </div>`;
     })
     .join("");
@@ -355,8 +358,8 @@ function getBranchTrendColor(index) {
   return "#2563eb";
 }
 
-function buildMiniTrendSvg({ labels, values, color, width = 720, height = 72 }) {
-  const padding = { top: 22, right: 8, bottom: 10, left: 8 };
+function buildMiniTrendSvg({ labels, values, color, width = 560, height = 56 }) {
+  const padding = { top: 14, right: 6, bottom: 8, left: 6 };
   const innerWidth = width - padding.left - padding.right;
   const innerHeight = height - padding.top - padding.bottom;
   const max = Math.max(1, ...values);
@@ -377,30 +380,48 @@ function buildMiniTrendSvg({ labels, values, color, width = 720, height = 72 }) 
     .join(" ");
   const area = `${path} L ${points[points.length - 1].x} ${padding.top + innerHeight} L ${points[0].x} ${padding.top + innerHeight} Z`;
 
+  const peakIndex = points.reduce(
+    (best, point, index) => (point.value > points[best].value ? index : best),
+    0,
+  );
+  const labelIndexes = new Set([peakIndex, points.length - 1]);
+  if (points.length <= 4) {
+    points.forEach((_, index) => labelIndexes.add(index));
+  } else {
+    points.forEach((_, index) => {
+      if (index % 2 === 0) labelIndexes.add(index);
+    });
+  }
+
   const dots = points
-    .map(
-      (point) => `
+    .map((point) => {
+      const showLabel = labelIndexes.has(point.index);
+      return `
         <circle
           class="line-chart-point"
           cx="${point.x}"
           cy="${point.y}"
-          r="4"
+          r="2.5"
           fill="${color}"
           data-tooltip="${escapeHtml(`${formatMonthLabel(labels[point.index])}: ${formatNumber(point.value, 2)} ชม.`)}"
         ></circle>
-        <text
+        ${
+          showLabel
+            ? `<text
           x="${point.x}"
-          y="${point.y - 8}"
+          y="${point.y - 5}"
           text-anchor="middle"
           class="branch-trend-value-label"
-        >${formatNumber(point.value, 0)}</text>`,
-    )
+        >${formatNumber(point.value, 0)}</text>`
+            : ""
+        }`;
+    })
     .join("");
 
   return `
     <svg viewBox="0 0 ${width} ${height}" class="branch-trend-mini" role="img" aria-hidden="true">
       <path d="${area}" fill="${color}" fill-opacity="0.08"></path>
-      <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"></path>
       ${dots}
     </svg>`;
 }
@@ -514,10 +535,8 @@ function formatCombinedValue(value, mode) {
   return formatNumber(value, 0);
 }
 
-function buildMultiLineChartSvg({ labels, series, mode = "absolute" }) {
-  const width = 860;
-  const height = 300;
-  const padding = { top: 22, right: 72, bottom: 42, left: 52 };
+function buildMultiLineChartSvg({ labels, series, mode = "absolute", width = 720, height = 200 }) {
+  const padding = { top: 16, right: 56, bottom: 32, left: 42 };
   const innerWidth = width - padding.left - padding.right;
   const innerHeight = height - padding.top - padding.bottom;
   const dataMax = Math.max(...series.flatMap((item) => item.values), 1);
@@ -603,19 +622,26 @@ function renderCombinedLegend(series, mode) {
     .join("");
 }
 
-function renderCombinedChartBlock(title, subtitle, series, labels, mode) {
+function renderCombinedChartBlock(title, subtitle, series, labels, mode, { compact = false } = {}) {
   if (!series.length || !labels.length) {
     return "";
   }
 
-  const chart = buildMultiLineChartSvg({ labels, series, mode });
+  const chart = buildMultiLineChartSvg({
+    labels,
+    series,
+    mode,
+    width: compact ? 600 : 720,
+    height: compact ? 200 : 240,
+  });
   const legend = renderCombinedLegend(series, mode);
+  const compactClass = compact ? " branch-combined-wrap--compact" : "";
 
   return `
-    <div class="branch-combined-section">
+    <div class="branch-combined-section${compact ? " branch-combined-section--compact" : ""}">
       <div class="branch-chart-label">${escapeHtml(title)}</div>
       ${subtitle ? `<p class="branch-combined-note">${escapeHtml(subtitle)}</p>` : ""}
-      <div class="line-chart-wrap branch-combined-wrap">
+      <div class="line-chart-wrap branch-combined-wrap${compactClass}">
         ${chart}
         <div class="line-chart-legend">${legend}</div>
       </div>
@@ -654,21 +680,24 @@ function renderBranchCombinedChart(groups) {
     const mmtSeries = buildCombinedSeries(mmtGroups, labels, sourceRows);
     const otherSeries = buildCombinedSeries(otherGroups, labels, sourceRows);
 
+    const mmtBlock = renderCombinedChartBlock(
+      "MMT",
+      "scale เฉพาะ MMT",
+      mmtSeries,
+      labels,
+      "absolute",
+      { compact: true },
+    );
+    const otherBlock = renderCombinedChartBlock(
+      `สาขาอื่น (${otherGroups.length} สาขา)`,
+      "ทุกสาขานอก MMT ใน scale เดียวกัน · เปรียบเทียบ curve ข้ามสาขาได้ทันที",
+      otherSeries,
+      labels,
+      "absolute",
+      { compact: true },
+    );
     blocks = [
-      renderCombinedChartBlock(
-        "MMT",
-        "scale เฉพาะ MMT",
-        mmtSeries,
-        labels,
-        "absolute",
-      ),
-      renderCombinedChartBlock(
-        `สาขาอื่น (${otherGroups.length} สาขา)`,
-        "ทุกสาขานอก MMT ใน scale เดียวกัน · เปรียบเทียบ curve ข้ามสาขาได้ทันที",
-        otherSeries,
-        labels,
-        "absolute",
-      ),
+      `<div class="branch-combined-pair">${mmtBlock}${otherBlock}</div>`,
     ];
   }
 
@@ -751,8 +780,19 @@ function renderReport(summary) {
     return;
   }
 
-  els.reportBody.innerHTML = people
+  const pageSizeOptions = [10, 20, 50];
+  if (!pageSizeOptions.includes(state.reportPageSize)) {
+    state.reportPageSize = 10;
+  }
+  const totalPages = Math.max(1, Math.ceil(people.length / state.reportPageSize));
+  state.reportPage = Math.min(Math.max(1, state.reportPage), totalPages);
+  const start = (state.reportPage - 1) * state.reportPageSize;
+  const end = start + state.reportPageSize;
+  const pagePeople = people.slice(start, end);
+
+  const cards = pagePeople
     .map((person, index) => {
+      const personIndex = start + index;
       const dayRows = person.days
         .map(
           (day) => `
@@ -778,18 +818,24 @@ function renderReport(summary) {
 
       return `
         <article class="report-person panel">
-          <button class="report-person-head" type="button" aria-expanded="false" data-target="person-${index}">
-            <div>
+          <button class="report-person-head" type="button" aria-expanded="false" data-target="person-${personIndex}">
+            <div class="report-person-ident">
               <strong>${escapeHtml(person.name)}</strong>
-              <span class="report-meta">${escapeHtml(person.prsNo || person.empKey)} · ${escapeHtml(person.departmentName)} · ${escapeHtml(person.branchName)}</span>
+              <span class="report-meta">${escapeHtml(person.prsNo || person.empKey)}</span>
+            </div>
+            <div class="report-person-org">
+              <span>${escapeHtml(person.departmentName)}</span>
+              <span>${escapeHtml(person.branchName)}</span>
+            </div>
+            <div class="report-person-days">
+              ${formatNumber(person.dayCount)} วัน
             </div>
             <div class="report-person-stats">
-              <span>${formatNumber(person.dayCount)} วัน</span>
-              <span>${formatNumber(person.totalHours, 2)} ชม.</span>
+              <strong>${formatNumber(person.totalHours, 2)} ชม.</strong>
+              <span class="report-toggle">ดูรายละเอียด</span>
             </div>
-            <span class="report-toggle">ดูรายละเอียด</span>
           </button>
-          <div class="report-person-body" id="person-${index}" hidden>
+          <div class="report-person-body" id="person-${personIndex}" hidden>
             <h3>สรุปรายวัน</h3>
             <div class="table-wrap compact">
               <table>
@@ -813,6 +859,34 @@ function renderReport(summary) {
     })
     .join("");
 
+  els.reportBody.innerHTML = `
+    <div class="report-toolbar">
+      <div class="report-toolbar-meta">
+        <strong>${formatNumber(people.length)} คน</strong>
+        <span>แสดง ${formatNumber(start + 1)}-${formatNumber(Math.min(end, people.length))} จากทั้งหมด</span>
+      </div>
+      <div class="report-pagination">
+        <label class="report-page-size">
+          <span>หน้าละ</span>
+          <select data-report-page-size>
+            ${pageSizeOptions
+              .map(
+                (size) => `<option value="${size}" ${size === state.reportPageSize ? "selected" : ""}>${size}</option>`,
+              )
+              .join("")}
+          </select>
+          <span>คน</span>
+        </label>
+        <div class="report-pagination-controls">
+          <button type="button" class="report-page-btn" data-report-page-action="prev" ${state.reportPage <= 1 ? "disabled" : ""}>ก่อนหน้า</button>
+          <span class="report-page-indicator">หน้า ${formatNumber(state.reportPage)} / ${formatNumber(totalPages)}</span>
+          <button type="button" class="report-page-btn" data-report-page-action="next" ${state.reportPage >= totalPages ? "disabled" : ""}>ถัดไป</button>
+        </div>
+      </div>
+    </div>
+    <div class="report-cards">${cards}</div>
+  `;
+
   els.reportBody.querySelectorAll(".report-person-head").forEach((button) => {
     button.addEventListener("click", () => {
       const target = document.getElementById(button.dataset.target);
@@ -822,6 +896,280 @@ function renderReport(summary) {
       button.classList.toggle("is-open", !expanded);
     });
   });
+
+  const pageSizeSelect = els.reportBody.querySelector("[data-report-page-size]");
+  if (pageSizeSelect) {
+    pageSizeSelect.addEventListener("change", (event) => {
+      state.reportPageSize = Number(event.target.value) || 10;
+      state.reportPage = 1;
+      renderReport(summary);
+    });
+  }
+
+  els.reportBody.querySelectorAll("[data-report-page-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.reportPageAction;
+      if (action === "prev" && state.reportPage > 1) {
+        state.reportPage -= 1;
+      } else if (action === "next" && state.reportPage < totalPages) {
+        state.reportPage += 1;
+      } else {
+        return;
+      }
+      renderReport(summary);
+    });
+  });
+}
+
+function thaiMonthLabel(month) {
+  const labels = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  return labels[Number(month) - 1] || String(month);
+}
+
+function niceAxisMax(value) {
+  if (!value || value <= 0) return 10;
+  const padded = value * 1.12;
+  const magnitude = 10 ** Math.floor(Math.log10(padded));
+  const normalized = padded / magnitude;
+  const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return nice * magnitude;
+}
+
+function buildPpComboChart(months) {
+  const n = months.length;
+  if (!n) return "";
+
+  const maxLeft = niceAxisMax(Math.max(...months.map((m) => Math.max(m.steelTon, m.otHours)), 1));
+  const maxRight = niceAxisMax(Math.max(...months.map((m) => m.people), 1));
+
+  const W = Math.max(600, n * 100);
+  const H = 275;
+  const pad = { top: 38, right: 55, bottom: 45, left: 60 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+  const groupW = plotW / n;
+  const barW = Math.min(19, groupW * 0.26);
+  const gap = 4;
+  const minBarHeightForLabel = 30;
+  const xLabelY = pad.top + plotH + 23;
+  const axisBaseY = pad.top + plotH;
+
+  const yLeft = (v) => pad.top + plotH - (v / maxLeft) * plotH;
+  const yRight = (v) => pad.top + plotH - (v / maxRight) * plotH;
+  const xCenter = (i) => pad.left + groupW * i + groupW / 2;
+
+  const barInsideLabel = (x, y, height, value, className) => {
+    if (height < minBarHeightForLabel) return "";
+    const labelY = y + Math.min(height - 6, 14);
+    return `<text x="${x + barW / 2}" y="${labelY}" text-anchor="middle" class="${className}">${formatNumber(value, 0)}</text>`;
+  };
+
+  const leftTicks = 4;
+  const leftTickEls = [];
+  const rightTickEls = [];
+  for (let i = 0; i <= leftTicks; i += 1) {
+    const t = (maxLeft / leftTicks) * i;
+    const y = yLeft(t);
+    leftTickEls.push(`
+      <line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" class="pp-grid" />
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="pp-axis-label">${formatNumber(t, t >= 1000 ? 0 : 1)}</text>
+    `);
+    const rt = (maxRight / leftTicks) * i;
+    const yr = yRight(rt);
+    rightTickEls.push(`
+      <text x="${pad.left + plotW + 8}" y="${yr + 4}" text-anchor="start" class="pp-axis-label pp-axis-label--right">${formatNumber(rt, 0)}</text>
+    `);
+  }
+
+  const bars = months
+    .map((m, i) => {
+      const cx = xCenter(i);
+      const steelX = cx - barW - gap / 2;
+      const otX = cx + gap / 2;
+      const steelH = Math.max(2, (m.steelTon / maxLeft) * plotH);
+      const otH = Math.max(2, (m.otHours / maxLeft) * plotH);
+      const steelY = pad.top + plotH - steelH;
+      const otY = pad.top + plotH - otH;
+
+      return `
+        <g class="pp-bar-group">
+          <rect x="${steelX}" y="${steelY}" width="${barW}" height="${steelH}" rx="3" class="pp-svg-bar pp-svg-bar--steel">
+            <title>ปริมาณเหล็ก: ${formatNumber(m.steelTon, 2)} ตัน</title>
+          </rect>
+          ${barInsideLabel(steelX, steelY, steelH, m.steelTon, "pp-svg-bar-label pp-svg-bar-label--inside-steel")}
+          <rect x="${otX}" y="${otY}" width="${barW}" height="${otH}" rx="3" class="pp-svg-bar pp-svg-bar--ot">
+            <title>จำนวนโอที: ${formatNumber(m.otHours, 2)} ชม.</title>
+          </rect>
+          ${barInsideLabel(otX, otY, otH, m.otHours, "pp-svg-bar-label pp-svg-bar-label--inside-ot")}
+          <text x="${cx}" y="${xLabelY}" text-anchor="middle" class="pp-svg-x">${escapeHtml(m.label)}</text>
+        </g>
+      `;
+    })
+    .join("");
+
+  const points = months.map((m, i) => ({
+    x: xCenter(i),
+    y: yRight(m.people),
+    value: m.people,
+    showLabel: n <= 8 || i % 2 === 0 || i === n - 1,
+  }));
+
+  const linePath = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ");
+
+  const lineEls = `
+    <path d="${linePath}" class="pp-people-line" fill="none" />
+    ${points
+      .map((p, i) => {
+        const side = i % 2 === 0 ? 1 : -1;
+        const labelX = p.x + side * 13;
+        const anchor = side > 0 ? "start" : "end";
+        const peopleLabel = p.showLabel
+          ? `<text x="${labelX}" y="${p.y + 3}" text-anchor="${anchor}" class="pp-people-label">${formatNumber(p.value, 0)}</text>`
+          : "";
+        return `
+      <circle cx="${p.x}" cy="${p.y}" r="4.5" class="pp-people-dot">
+        <title>คน: ${formatNumber(p.value, 0)}</title>
+      </circle>
+      ${peopleLabel}
+    `;
+      })
+      .join("")}
+  `;
+
+  return `
+    <div class="pp-combo-wrap">
+      <svg class="pp-combo-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟเหล็กและโอทีเทียบจำนวนคน">
+        ${leftTickEls.join("")}
+        ${rightTickEls.join("")}
+        <line x1="${pad.left}" y1="${axisBaseY}" x2="${pad.left + plotW}" y2="${axisBaseY}" class="pp-axis-base" />
+        ${lineEls}
+        ${bars}
+        <text x="${pad.left}" y="15" class="pp-axis-title">ตัน / ชม. OT</text>
+        <text x="${pad.left + plotW}" y="15" text-anchor="end" class="pp-axis-title pp-axis-title--right">คน</text>
+      </svg>
+    </div>
+  `;
+}
+
+function renderPpProductivity(payload) {
+  if (!els.ppProductivity) return;
+  const months = payload?.months || [];
+  if (!months.length) {
+    els.ppProductivity.innerHTML =
+      '<div class="empty-state">ไม่มีข้อมูล ZHR_PP ในช่วงที่เลือก</div>';
+    return;
+  }
+
+  const avg = payload.average || {};
+  const columns = [
+    ...months.map((m) => ({
+      key: m.key,
+      label: `${thaiMonthLabel(m.month)} ${String(m.year).slice(2)}`,
+      people: m.people,
+      steelTon: m.steelTon,
+      otHours: m.otHours,
+      tonPerHr: m.tonPerHr,
+      hrPerTon: m.hrPerTon,
+    })),
+    {
+      key: "avg",
+      label: "ค่าเฉลี่ย",
+      people: avg.people,
+      steelTon: avg.steelTon,
+      otHours: avg.otHours,
+      tonPerHr: avg.tonPerHr,
+      hrPerTon: avg.hrPerTon,
+    },
+  ];
+
+  const chartMonths = columns.filter((c) => c.key !== "avg");
+  const tonAvg = avg.tonPerHr;
+  const hrAvg = avg.hrPerTon;
+
+  const dataRows = [
+    {
+      label: "คน",
+      get: (c) => formatNumber(c.people, c.key === "avg" ? 2 : 0),
+      cls: () => "",
+    },
+    {
+      label: "ปริมาณเหล็ก",
+      get: (c) => formatNumber(c.steelTon, 2),
+      cls: () => "",
+    },
+    {
+      label: "จำนวนโอที",
+      get: (c) => formatNumber(c.otHours, 2),
+      cls: () => "",
+    },
+  ];
+
+  const ratioRows = [
+    {
+      label: "1Hr = Ton",
+      get: (c) => (c.tonPerHr == null ? "-" : formatNumber(c.tonPerHr, 3)),
+      cls: (c) =>
+        c.key !== "avg" && c.tonPerHr != null && tonAvg != null && c.tonPerHr >= tonAvg
+          ? "pp-cell--good"
+          : "",
+    },
+    {
+      label: "1Ton = Hr",
+      get: (c) => (c.hrPerTon == null ? "-" : formatNumber(c.hrPerTon, 3)),
+      cls: (c) =>
+        c.key !== "avg" && c.hrPerTon != null && hrAvg != null && c.hrPerTon > hrAvg
+          ? "pp-cell--bad"
+          : "",
+    },
+  ];
+
+  function buildTable(rows, extraClass = "") {
+    const head = `
+      <tr>
+        <th></th>
+        ${columns.map((c) => `<th>${escapeHtml(c.label)}</th>`).join("")}
+      </tr>`;
+    const body = rows
+      .map(
+        (row) => `
+      <tr>
+        <th scope="row">${escapeHtml(row.label)}</th>
+        ${columns
+          .map((c) => `<td class="${row.cls(c)}">${row.get(c)}</td>`)
+          .join("")}
+      </tr>`,
+      )
+      .join("");
+    return `<div class="table-wrap"><table class="pp-table ${extraClass}"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  els.ppProductivity.innerHTML = `
+    <div class="pp-legend">
+      <span><i class="pp-swatch pp-swatch--steel"></i>ปริมาณเหล็ก (ตัน) — แท่ง</span>
+      <span><i class="pp-swatch pp-swatch--ot"></i>จำนวนโอที (ชม.) — แท่ง</span>
+      <span><i class="pp-swatch pp-swatch--people pp-swatch--line"></i>คน — เส้น (แกนขวา)</span>
+    </div>
+    ${buildPpComboChart(chartMonths)}
+    ${buildTable(dataRows)}
+    ${buildTable(ratioRows, "pp-table--ratio")}
+  `;
+}
+
+async function loadPpProductivity() {
+  if (!els.ppProductivity) return;
+  try {
+    const payload = await fetchPpProductivity({
+      from: state.filters.from,
+      to: state.filters.to,
+      df_code: state.filters.df_code,
+      department: state.filters.department,
+    });
+    renderPpProductivity(payload);
+  } catch (error) {
+    els.ppProductivity.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
 }
 
 function refresh() {
@@ -841,6 +1189,7 @@ function refresh() {
   updateRangeLabel(branchGroups, deptGroups);
   updateHero(branchGroups, deptGroups);
   syncUrl();
+  loadPpProductivity();
 }
 
 async function loadData() {
@@ -874,6 +1223,9 @@ async function loadData() {
       els.branchCombinedChart.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     els.reportBody.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    if (els.ppProductivity) {
+      els.ppProductivity.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
     if (els.connectionStatus) {
       els.connectionStatus.textContent = `⚠ ${error.message}`;
       els.connectionStatus.classList.add("is-error");
@@ -885,6 +1237,7 @@ async function loadData() {
 
 function bindEvents() {
   const onRangeOrTypeChange = () => {
+    state.reportPage = 1;
     state.filters.from = els.fromInput.value;
     state.filters.to = els.toInput.value;
     state.filters.df_code = els.dfCodeSelect.value;
@@ -900,10 +1253,12 @@ function bindEvents() {
   els.toInput.addEventListener("change", onRangeOrTypeChange);
   els.dfCodeSelect.addEventListener("change", onRangeOrTypeChange);
   els.branchSelect.addEventListener("change", (event) => {
+    state.reportPage = 1;
     state.filters.branch = event.target.value;
     refresh();
   });
   els.departmentSelect.addEventListener("change", (event) => {
+    state.reportPage = 1;
     state.filters.department = event.target.value;
     refresh();
   });
