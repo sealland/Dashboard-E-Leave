@@ -1589,3 +1589,304 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* —— EMC Absence & Attendance —— */
+.emc-section .panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.emc-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.emc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.emc-legend-item--max {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.emc-legend-item--over {
+  background: #fef08a;
+  color: #854d0e;
+}
+
+.emc-table-wrap {
+  margin-top: 12px;
+}
+
+.emc-scroll {
+  max-height: none;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.emc-table {
+  min-width: 960px;
+  width: max-content;
+  border-collapse: collapse;
+}
+
+.emc-table th,
+.emc-table td {
+  border: 1px solid #d7e0ec;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.emc-table thead th {
+  background: #f1f5fb;
+  text-align: center;
+  vertical-align: bottom;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.emc-table th.emc-col-stat,
+.emc-table th.emc-col-unit {
+  text-align: left;
+  left: 0;
+  z-index: 3;
+}
+
+.emc-table th.emc-col-unit {
+  left: 168px;
+}
+
+.emc-table td.emc-stat,
+.emc-table td.emc-unit {
+  background: #fff;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  font-weight: 600;
+}
+
+.emc-table td.emc-unit {
+  left: 168px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.emc-col-stat,
+.emc-stat {
+  min-width: 168px;
+}
+
+.emc-col-unit,
+.emc-unit {
+  min-width: 72px;
+}
+
+.emc-hc {
+  display: block;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.emc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.emc-total {
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.emc-cell--max {
+  background: #fecaca !important;
+  color: #7f1d1d;
+  font-weight: 700;
+}
+
+.emc-cell--over {
+  background: #fef08a !important;
+  color: #713f12;
+  font-weight: 600;
+}
+
+.emc-table tbody tr:hover td.emc-stat,
+.emc-table tbody tr:hover td.emc-unit {
+  background: #f7fbff;
+}
+
+.menu-card--emc {
+  border-color: #7dd3fc;
+  background: linear-gradient(160deg, #fff 55%, #e0f2fe 100%);
+}
+
+/* —— EMC stacked bar chart —— */
+.emc-chart-section .panel-head {
+  align-items: center;
+}
+
+.emc-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: flex-end;
+}
+
+.emc-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.emc-chart-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.emc-chart {
+  margin-top: 8px;
+  padding: 16px 18px 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.emc-hbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.emc-hbar-row,
+.emc-hbar-axis {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.emc-hbar-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+}
+
+.emc-hbar-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.emc-hbar-stack {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: repeating-linear-gradient(
+    to right,
+    transparent,
+    transparent calc(10% - 1px),
+    #eef2f7 calc(10% - 1px),
+    #eef2f7 10%
+  );
+}
+
+.emc-hbar-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 100%;
+}
+
+.emc-hbar-seg-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.emc-hbar-seg--light .emc-hbar-seg-label {
+  color: #3f2f14;
+  text-shadow: none;
+}
+
+.emc-hbar-total {
+  flex-shrink: 0;
+  min-width: 42px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.emc-hbar-axis {
+  margin-top: 2px;
+  padding-top: 2px;
+}
+
+.emc-hbar-axis-track {
+  position: relative;
+  height: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.emc-hbar-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.emc-hbar-tick-line {
+  width: 1px;
+  height: 6px;
+  background: var(--line);
+}
+
+.emc-hbar-tick-label {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .emc-hbar-row,
+  .emc-hbar-axis {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .emc-hbar-seg-label {
+    font-size: 0.66rem;
+  }
+}

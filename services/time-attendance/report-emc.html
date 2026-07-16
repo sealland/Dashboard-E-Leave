@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>รายงานมาสาย — HR Dashboard</title>
+    <title>รายงาน EMC — Absence & Attendance</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -23,9 +23,9 @@
           <a class="nav-item" href="/">ศูนย์ Dashboard</a>
           <a class="nav-item" href="./">เมนูรายงาน</a>
           <a class="nav-item" href="./index.html">รายงานลา</a>
-          <a class="nav-item active" href="./report-late.html">รายงานมาสาย</a>
+          <a class="nav-item" href="./report-late.html">รายงานมาสาย</a>
           <a class="nav-item" href="./report-ot.html">รายงานโอที</a>
-          <a class="nav-item" href="./report-emc.html">รายงาน EMC</a>
+          <a class="nav-item active" href="./report-emc.html">รายงาน EMC</a>
         </nav>
         <div class="sidebar-user">
           <div class="avatar">ผ</div>
@@ -39,27 +39,19 @@
       <main class="main">
         <header class="page-head">
           <div>
-            <p class="eyebrow">รายงานเชิงลึก</p>
-            <h1>รายงาน<span>มาสาย</span></h1>
+            <p class="eyebrow">รายงาน EMC</p>
+            <h1>Absence &amp; <span>Attendance</span></h1>
             <p class="page-subtitle" id="range-label">กำลังโหลดข้อมูล...</p>
             <p class="connection-status" id="connection-status">กำลังเชื่อมต่อ...</p>
           </div>
           <div class="toolbar">
             <label class="control">
-              <span>ตั้งแต่</span>
-              <input id="from-input" type="date" />
+              <span>เดือน</span>
+              <select id="month-select"></select>
             </label>
             <label class="control">
-              <span>ถึง</span>
-              <input id="to-input" type="date" />
-            </label>
-            <label class="control">
-              <span>สาขา</span>
-              <select id="branch-select"><option value="all">สาขาทั้งหมด</option></select>
-            </label>
-            <label class="control">
-              <span>แผนก</span>
-              <select id="department-select"><option value="all">แผนกทั้งหมด</option></select>
+              <span>ปี</span>
+              <select id="year-select"></select>
             </label>
           </div>
         </header>
@@ -69,20 +61,35 @@
           <span class="loading-text">กำลังโหลดข้อมูลจากระบบ...</span>
         </div>
 
-        <section id="summary-grid" class="stats-grid"></section>
-
-        <section class="report-section">
+        <section class="report-section emc-section emc-chart-section">
           <div class="panel-head">
             <div>
-              <h2>รายชื่อพนักงานมาสาย</h2>
-              <p>กดที่แต่ละรายการเพื่อดูสรุปรายวันและข้อมูลต้นทางจากระบบ</p>
+              <h2>Absence &amp; Attendance</h2>
+              <p>สรุปต่อคน แยกตาม BU (เรียงจากผลรวมมาก → น้อย)</p>
+            </div>
+            <div id="emc-chart-legend" class="emc-chart-legend" aria-hidden="true"></div>
+          </div>
+          <div id="emc-chart" class="emc-chart"></div>
+        </section>
+
+        <section class="report-section emc-section">
+          <div class="panel-head">
+            <div>
+              <h2>สรุปตาม BU</h2>
+              <p>
+                แดง = ค่าสูงสุดของแถว · เหลือง = มากกว่า Total · ตัวหารจาก tbl_hr_org
+              </p>
+            </div>
+            <div class="emc-legend" aria-hidden="true">
+              <span class="emc-legend-item emc-legend-item--max">MAX</span>
+              <span class="emc-legend-item emc-legend-item--over">กว่า Total</span>
             </div>
           </div>
-          <div id="report-body" class="report-list"></div>
+          <div id="report-body" class="emc-table-wrap"></div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./report-late.js"></script>
+    <script type="module" src="./report-emc.js"></script>
   </body>
 </html>

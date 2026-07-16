@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import attendanceRouter from "./routes/attendance.js";
 import overtimeRouter from "./routes/overtime.js";
+import emcRouter from "./routes/emc.js";
 
 dotenv.config();
 
@@ -70,6 +71,7 @@ if (basePath) {
 const router = express.Router();
 router.use("/api", attendanceRouter);
 router.use("/api", overtimeRouter);
+router.use("/api", emcRouter);
 
 router.get("/", (_req, res) => {
   sendHtml(res, "home.html");
@@ -89,6 +91,10 @@ router.get("/report-late.html", (_req, res) => {
 
 router.get("/report-ot.html", (_req, res) => {
   sendHtml(res, "report-ot.html");
+});
+
+router.get("/report-emc.html", (_req, res) => {
+  sendHtml(res, "report-emc.html");
 });
 
 router.use(express.static(rootDir, { index: false }));
