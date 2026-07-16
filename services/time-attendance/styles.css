@@ -2157,7 +2157,7 @@ tbody tr:hover {
 .emc-hbar {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .emc-hbar-row,
@@ -2464,6 +2464,120 @@ tbody tr:hover {
 
   .workforce-card--treemap {
     min-height: 280px;
+  }
+}
+
+/* —— Turnover Rate —— */
+.turnover-wrap {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.turnover-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px 16px;
+}
+
+.turnover-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.turnover-legend {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.turnover-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.turnover-legend i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.turnover-kpis {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.turnover-kpi {
+  font-size: 0.96rem;
+  color: var(--text);
+}
+
+.turnover-kpi strong {
+  font-weight: 700;
+}
+
+.turnover-kpi--current strong {
+  color: #b90f2d;
+}
+
+.turnover-kpi--previous strong {
+  color: #4e83ea;
+}
+
+.turnover-chart-wrap {
+  overflow-x: auto;
+}
+
+.turnover-chart {
+  display: block;
+  width: 100%;
+  min-width: 900px;
+  height: auto;
+}
+
+.turnover-grid {
+  stroke: #e6e9ef;
+  stroke-width: 1;
+}
+
+.turnover-line {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.turnover-dot {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.turnover-axis-label,
+.turnover-month-label {
+  fill: #222;
+  font-size: 14px;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+.turnover-point-label {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: "IBM Plex Sans Thai", sans-serif;
+}
+
+@media (max-width: 900px) {
+  .turnover-kpis {
+    justify-items: start;
   }
 }
 

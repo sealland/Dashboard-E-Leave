@@ -239,6 +239,72 @@ router.get("/emc", async (req, res) => {
   }
 });
 
+router.get("/emc/turnover", async (req, res) => {
+  const baseYear = Number(req.query.year) || new Date().getFullYear();
+  if (!Number.isInteger(baseYear) || baseYear < 2000 || baseYear > 2100) {
+    res.status(400).json({ error: "year is invalid" });
+    return;
+  }
+
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("year", sql.Int, baseYear);
+    request.input("prevYear", sql.Int, baseYear - 1);
+
+    const result = await request.query(`
+      SELECT
+        CAST(TURN_YEAR AS int) AS turn_year,
+        CAST(TURN_MONTH AS int) AS turn_month,
+        CAST(EMP_ALL AS float) AS emp_all,
+        CAST(TURNOVER AS float) AS turnover
+      FROM dbo.ZHR_TURNOVER
+      WHERE TURN_YEAR IN (@year, @prevYear)
+      ORDER BY TURN_YEAR ASC, TURN_MONTH ASC
+    `);
+
+    const byYearMonth = new Map();
+    for (const row of result.recordset) {
+      byYearMonth.set(`${row.turn_year}-${row.turn_month}`, row);
+    }
+
+    function buildSeries(year) {
+      const months = Array.from({ length: 12 }, (_, index) => {
+        const month = index + 1;
+        const row = byYearMonth.get(`${year}-${month}`);
+        const employees = Number(row?.emp_all) || 0;
+        const turnover = Number(row?.turnover) || 0;
+        const rate = employees > 0 ? (turnover / employees) * 100 : null;
+        return {
+          month,
+          employees,
+          turnover,
+          rate,
+        };
+      });
+      const validRates = months.map((item) => item.rate).filter((value) => Number.isFinite(value));
+      const averageRate = validRates.length
+        ? validRates.reduce((sum, value) => sum + value, 0) / validRates.length
+        : null;
+      return {
+        year,
+        averageRate,
+        months,
+      };
+    }
+
+    res.json({
+      current: buildSeries(baseYear),
+      previous: buildSeries(baseYear - 1),
+      meta: {
+        source: "ZHR_TURNOVER",
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get("/emc/workforce", async (_req, res) => {
   try {
     const pool = await getPool();

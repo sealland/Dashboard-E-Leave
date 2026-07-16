@@ -36,6 +36,7 @@ const els = {
   chart: document.getElementById("emc-chart"),
   chartLegend: document.getElementById("emc-chart-legend"),
   workforce: document.getElementById("workforce-body"),
+  turnover: document.getElementById("turnover-body"),
 };
 
 /** สีช่อง treemap ตามรหัสกลุ่ม */
@@ -112,6 +113,15 @@ async function fetchWorkforce() {
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error || "ไม่สามารถโหลด Workforce Overview ได้");
+  }
+  return payload;
+}
+
+async function fetchTurnover(year) {
+  const response = await fetch(`${withBasePath("/api/emc/turnover")}?year=${encodeURIComponent(year)}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลด Turnover Rate ได้");
   }
   return payload;
 }
@@ -351,6 +361,130 @@ function renderWorkforce(payload) {
   `;
 }
 
+function formatPct(value) {
+  if (!Number.isFinite(value)) return "-";
+  return formatNumber(value, 2);
+}
+
+function renderTurnover(payload, activeMonth) {
+  if (!els.turnover) return;
+
+  const current = payload?.current;
+  const previous = payload?.previous;
+  if (!current || !previous) {
+    els.turnover.innerHTML = `<div class="empty-state">ไม่มีข้อมูล Turnover</div>`;
+    return;
+  }
+
+  const labels = THAI_MONTHS.map((item) => item.label.slice(0, 3));
+  const currentValues = current.months.map((item) => item.rate);
+  const previousValues = previous.months.map((item) => (
+    item.month <= activeMonth ? item.rate : null
+  ));
+  const allValues = [...currentValues, ...previousValues].filter((value) => Number.isFinite(value));
+  const maxValue = allValues.length ? Math.max(...allValues) : 0;
+  const axisMax = Math.max(1, Math.ceil((maxValue * 1.15) / 0.5) * 0.5);
+  const ticks = Array.from({ length: Math.floor(axisMax / 0.5) + 1 }, (_, index) => index * 0.5);
+
+  const width = 980;
+  const height = 420;
+  const pad = { top: 54, right: 70, bottom: 56, left: 58 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const xStep = plotW / 11;
+  const xOf = (index) => pad.left + xStep * index;
+  const yOf = (value) => pad.top + plotH - (value / axisMax) * plotH;
+
+  function curvedLinePath(values) {
+    const points = values
+      .map((value, index) => (
+        Number.isFinite(value)
+          ? { x: xOf(index), y: yOf(value) }
+          : null
+      ))
+      .filter(Boolean);
+
+    if (!points.length) return "";
+    if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+
+    let path = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const p0 = points[i - 1] || points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+    return path;
+  }
+
+  function renderSeries(values, color, className) {
+    return values
+      .map((value, index) => {
+        if (!Number.isFinite(value)) return "";
+        const x = xOf(index);
+        const y = yOf(value);
+        return `
+          <circle cx="${x}" cy="${y}" r="4.5" class="turnover-dot ${className}" style="fill:${color}"></circle>
+          <text x="${x}" y="${Math.max(16, y - 12)}" text-anchor="middle" class="turnover-point-label" style="fill:${color}">${formatPct(value)}</text>
+        `;
+      })
+      .join("");
+  }
+
+  const grid = ticks
+    .map((tick) => {
+      const y = yOf(tick);
+      return `
+        <line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" class="turnover-grid"></line>
+        <text x="${pad.left - 12}" y="${y + 4}" text-anchor="end" class="turnover-axis-label">${formatNumber(tick, 1)}</text>
+      `;
+    })
+    .join("");
+
+  const monthLabels = labels
+    .map(
+      (label, index) => `
+        <text x="${xOf(index)}" y="${height - 18}" text-anchor="middle" class="turnover-month-label">${label}</text>
+      `,
+    )
+    .join("");
+
+  const currentColor = "#b90f2d";
+  const previousColor = "#4e83ea";
+  const currentPath = curvedLinePath(currentValues);
+  const previousPath = curvedLinePath(previousValues);
+
+  els.turnover.innerHTML = `
+    <div class="turnover-card">
+      <div class="turnover-head">
+        <div class="turnover-legend">
+          <span><i style="background:${previousColor}"></i>${escapeHtml(String(previous.year + 543))}</span>
+          <span><i style="background:${currentColor}"></i>${escapeHtml(String(current.year + 543))}</span>
+        </div>
+        <div class="turnover-kpis">
+          <div class="turnover-kpi turnover-kpi--current">${escapeHtml(String(current.year + 543))} Turnover <strong>${formatPct(current.averageRate)}</strong> / Month</div>
+          <div class="turnover-kpi turnover-kpi--previous">${escapeHtml(String(previous.year + 543))} Turnover <strong>${formatPct(previous.averageRate)}</strong> / Month</div>
+        </div>
+      </div>
+      <div class="turnover-chart-wrap">
+        <svg viewBox="0 0 ${width} ${height}" class="turnover-chart" role="img" aria-label="Turnover Rate เปรียบเทียบสองปีรายเดือน">
+          ${grid}
+          <path d="${previousPath}" class="turnover-line turnover-line--previous" style="stroke:${previousColor}"></path>
+          <path d="${currentPath}" class="turnover-line turnover-line--current" style="stroke:${currentColor}"></path>
+          ${renderSeries(previousValues, previousColor, "turnover-dot--previous")}
+          ${renderSeries(currentValues, currentColor, "turnover-dot--current")}
+          ${monthLabels}
+        </svg>
+      </div>
+    </div>
+  `;
+}
+
 function formatCell(value) {
   if (!value || value <= 0) return "-";
   return formatNumber(value, 2);
@@ -564,16 +698,17 @@ async function refresh() {
     els.status.classList.toggle("is-ok", ok);
     els.status.classList.toggle("is-bad", !ok);
 
-    const tasks = [fetchEmc(filters)];
-    if (!workforceCache) tasks.push(fetchWorkforce());
-    const results = await Promise.all(tasks);
-    const payload = results[0];
-    if (results[1]) {
-      workforceCache = results[1];
-      renderWorkforce(workforceCache);
-    } else if (workforceCache) {
-      renderWorkforce(workforceCache);
-    }
+    const payloadPromise = fetchEmc(filters);
+    const workforcePromise = workforceCache ? Promise.resolve(workforceCache) : fetchWorkforce();
+    const turnoverPromise = fetchTurnover(filters.year);
+    const [payload, workforcePayload, turnoverPayload] = await Promise.all([
+      payloadPromise,
+      workforcePromise,
+      turnoverPromise,
+    ]);
+    if (!workforceCache) workforceCache = workforcePayload;
+    renderWorkforce(workforceCache);
+    renderTurnover(turnoverPayload, filters.month);
     renderChart(payload);
     renderTable(payload);
   } catch (error) {
@@ -583,6 +718,9 @@ async function refresh() {
     }
     if (els.workforce && !workforceCache) {
       els.workforce.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
+    if (els.turnover) {
+      els.turnover.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     els.status.textContent = "โหลดข้อมูลไม่สำเร็จ";
     els.status.classList.add("is-bad");
