@@ -519,9 +519,13 @@ select, input {
 .table-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.table-header h2 {
+  margin: 0;
 }
 
 .hint {

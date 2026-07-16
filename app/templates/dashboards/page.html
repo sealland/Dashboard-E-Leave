@@ -120,8 +120,11 @@
 
     <section class="card table-section">
       <div class="table-header">
-        <h2>{{ ui.records_title }} <span id="record-count" class="badge">0</span></h2>
-        <p class="hint">เรียงตามวันเลยวันที่ขอลา/OT มากสุดก่อน — คลิกแถวเพื่อดูรายละเอียด</p>
+        <div>
+          <h2>{{ ui.records_title }} <span id="record-count" class="badge">0</span></h2>
+          <p class="hint">เรียงตามวันเลยวันที่ขอลา/OT มากสุดก่อน — คลิกแถวเพื่อดูรายละเอียด</p>
+        </div>
+        <button id="btn-export-xlsx" class="btn btn-ghost" type="button">ส่งออก XLSX</button>
       </div>
       <div class="table-wrap">
         <table id="records-table">
@@ -154,6 +157,6 @@
   </dialog>
 
   <script id="dashboard-config" type="application/json">{{ dashboard_config | tojson }}</script>
-  <script src="/static/dashboard.js?v=dept-total-label-5"></script>
+  <script src="/static/dashboard.js?v=export-xlsx-1"></script>
 </body>
 </html>

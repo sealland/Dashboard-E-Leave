@@ -401,6 +401,81 @@ function renderTypeChart(rows) {
   );
 }
 
+function formatExportDays(days) {
+  if (days === null || days === undefined || days === "") return "";
+  const n = Number(days);
+  if (Number.isNaN(n) || n <= 0) return "";
+  return n;
+}
+
+function pastDaysExportLabel() {
+  const kind = getDocKind();
+  if (kind === "T") return "เลยวัน OT (วัน)";
+  if (kind === "L") return "เลยวันลา (วัน)";
+  return "เลยวันลา/OT (วัน)";
+}
+
+async function exportRecordsToXlsx() {
+  const records = state.records;
+  if (!records.length) {
+    window.alert("ไม่มีรายการให้ส่งออก");
+    return;
+  }
+
+  const btn = $("#btn-export-xlsx");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "กำลังส่งออก...";
+  }
+
+  try {
+    const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm");
+    const headers = [
+      "เลขที่",
+      requestDateLabel(),
+      "วันที่เอกสาร",
+      "ประเภท",
+      "ชื่อ",
+      "แผนก",
+      "สถานะ",
+      "วันหัวหน้าอนุมัติ",
+      pastDaysExportLabel(),
+      "วัน HR อนุมัติ",
+      "ค้าง HR (วัน)",
+    ];
+
+    const rows = records.map((r) => [
+      r.RQI_REF || "",
+      fmtDate(r.RQI_FROM_DATE),
+      fmtDate(r.RQI_DATE),
+      formatLeaveType(r),
+      r.Name || "",
+      r.DEPT_CODE || "",
+      r.approval_stage || "",
+      r.App_DateN1 ? fmtDate(r.App_DateN1) : "",
+      formatExportDays(r.days_past_leave),
+      r.App_DateHR ? fmtDate(r.App_DateHR) : "",
+      formatExportDays(r.days_waiting_hr),
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "รายการคำร้อง");
+
+    const from = $("#filter-date-from").value || "all";
+    const to = $("#filter-date-to").value || "all";
+    XLSX.writeFile(workbook, `e-leave-records_${from}_${to}.xlsx`);
+  } catch (error) {
+    console.error(error);
+    window.alert("ส่งออกไฟล์ไม่สำเร็จ กรุณาลองใหม่");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "ส่งออก XLSX";
+    }
+  }
+}
+
 function renderTable(records) {
   state.records = records;
   $("#record-count").textContent = records.length;
@@ -676,6 +751,7 @@ function bindEvents() {
   });
 
   $("#btn-refresh").addEventListener("click", loadData);
+  $("#btn-export-xlsx")?.addEventListener("click", exportRecordsToXlsx);
 
   $("#btn-notify").addEventListener("click", async (e) => {
     e.stopPropagation();
