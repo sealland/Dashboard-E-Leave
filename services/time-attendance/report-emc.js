@@ -3,18 +3,18 @@ import { checkApiHealth } from "./shared/api.js";
 import { escapeHtml, formatNumber } from "./shared/format.js";
 
 const THAI_MONTHS = [
-  { value: 1, label: "มกราคม" },
-  { value: 2, label: "กุมภาพันธ์" },
-  { value: 3, label: "มีนาคม" },
-  { value: 4, label: "เมษายน" },
-  { value: 5, label: "พฤษภาคม" },
-  { value: 6, label: "มิถุนายน" },
-  { value: 7, label: "กรกฎาคม" },
-  { value: 8, label: "สิงหาคม" },
-  { value: 9, label: "กันยายน" },
-  { value: 10, label: "ตุลาคม" },
-  { value: 11, label: "พฤศจิกายน" },
-  { value: 12, label: "ธันวาคม" },
+  { value: 1, label: "มกราคม", short: "ม.ค." },
+  { value: 2, label: "กุมภาพันธ์", short: "ก.พ." },
+  { value: 3, label: "มีนาคม", short: "มี.ค." },
+  { value: 4, label: "เมษายน", short: "เม.ย." },
+  { value: 5, label: "พฤษภาคม", short: "พ.ค." },
+  { value: 6, label: "มิถุนายน", short: "มิ.ย." },
+  { value: 7, label: "กรกฎาคม", short: "ก.ค." },
+  { value: 8, label: "สิงหาคม", short: "ส.ค." },
+  { value: 9, label: "กันยายน", short: "ก.ย." },
+  { value: 10, label: "ตุลาคม", short: "ต.ค." },
+  { value: 11, label: "พฤศจิกายน", short: "พ.ย." },
+  { value: 12, label: "ธันวาคม", short: "ธ.ค." },
 ];
 
 /** ชุดข้อมูลกราฟ stacked — สีตามตัวอย่าง EMC */
@@ -57,6 +57,20 @@ const BU_TREEMAP_COLORS = Object.values(BU_TREEMAP_COLOR_BY_CODE);
 const BU_TREEMAP_OTHER_COLOR = BU_TREEMAP_COLOR_BY_CODE["อื่นๆ"];
 
 let workforceCache = null;
+let workforceCacheKey = "";
+let turnoverCache = null;
+
+function workforceKey(filters) {
+  return `${filters.year}-${filters.month}`;
+}
+
+function getCalendarPeriod() {
+  const now = new Date();
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+  };
+}
 
 
 function parseFilters() {
@@ -108,8 +122,12 @@ async function fetchEmc(filters) {
   return payload;
 }
 
-async function fetchWorkforce() {
-  const response = await fetch(withBasePath("/api/emc/workforce"));
+async function fetchWorkforce(filters) {
+  const params = new URLSearchParams({
+    month: String(filters.month),
+    year: String(filters.year),
+  });
+  const response = await fetch(`${withBasePath("/api/emc/workforce")}?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error || "ไม่สามารถโหลด Workforce Overview ได้");
@@ -376,7 +394,7 @@ function renderTurnover(payload, activeMonth) {
     return;
   }
 
-  const labels = THAI_MONTHS.map((item) => item.label.slice(0, 3));
+  const labels = THAI_MONTHS.map((item) => item.short);
   const currentValues = current.months.map((item) => item.rate);
   const previousValues = previous.months.map((item) => (
     item.month <= activeMonth ? item.rate : null
@@ -631,7 +649,7 @@ function renderChart(payload) {
 function renderTable(payload) {
   const { buses, totalHeadcount, rows } = payload;
   if (!buses.length) {
-    els.body.innerHTML = `<div class="empty-state">ไม่พบข้อมูล headcount จาก tbl_hr_org</div>`;
+    els.body.innerHTML = `<div class="empty-state">ไม่พบข้อมูล headcount จาก ZHR_EMPLOYEE</div>`;
     return;
   }
 
@@ -698,17 +716,26 @@ async function refresh() {
     els.status.classList.toggle("is-ok", ok);
     els.status.classList.toggle("is-bad", !ok);
 
+    const cacheKey = workforceKey(filters);
+    const calendar = getCalendarPeriod();
     const payloadPromise = fetchEmc(filters);
-    const workforcePromise = workforceCache ? Promise.resolve(workforceCache) : fetchWorkforce();
-    const turnoverPromise = fetchTurnover(filters.year);
+    const workforcePromise =
+      workforceCache && workforceCacheKey === cacheKey
+        ? Promise.resolve(workforceCache)
+        : fetchWorkforce(filters);
+    const turnoverPromise = turnoverCache
+      ? Promise.resolve(turnoverCache)
+      : fetchTurnover(calendar.year);
     const [payload, workforcePayload, turnoverPayload] = await Promise.all([
       payloadPromise,
       workforcePromise,
       turnoverPromise,
     ]);
-    if (!workforceCache) workforceCache = workforcePayload;
+    workforceCache = workforcePayload;
+    workforceCacheKey = cacheKey;
+    if (!turnoverCache) turnoverCache = turnoverPayload;
     renderWorkforce(workforceCache);
-    renderTurnover(turnoverPayload, filters.month);
+    renderTurnover(turnoverCache, calendar.month);
     renderChart(payload);
     renderTable(payload);
   } catch (error) {
@@ -719,7 +746,7 @@ async function refresh() {
     if (els.workforce && !workforceCache) {
       els.workforce.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
-    if (els.turnover) {
+    if (els.turnover && !turnoverCache) {
       els.turnover.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     els.status.textContent = "โหลดข้อมูลไม่สำเร็จ";

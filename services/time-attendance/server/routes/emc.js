@@ -89,19 +89,26 @@ router.get("/emc", async (req, res) => {
   try {
     const pool = await getPool();
 
-    const headcountResult = await pool.request().query(`
+    // Headcount ณ สิ้นเดือนที่เลือก จาก ZHR_EMPLOYEE
+    // PRI_RES_D = วันที่ลาออก, PRI_STATUS 1=ยังทำงาน 2=ลาออก (ใช้วันที่เพื่อย้อนหลังรายเดือนได้)
+    const headcountRequest = pool.request();
+    headcountRequest.input("to", sql.Date, to);
+    const headcountResult = await headcountRequest.query(`
       SELECT
-        RTRIM(LTRIM(BU)) AS bu,
+        RTRIM(LTRIM(ISNULL(BU, ''))) AS bu,
         RTRIM(LTRIM(ISNULL(DEP, ''))) AS dep,
         RTRIM(LTRIM(ISNULL(SEC, ''))) AS sec,
         COUNT(*) AS headcount
-      FROM dbo.tbl_hr_org
+      FROM dbo.ZHR_EMPLOYEE
       WHERE emp_code IS NOT NULL
         AND LTRIM(RTRIM(emp_code)) <> ''
         AND BU IS NOT NULL
         AND LTRIM(RTRIM(BU)) <> ''
+        AND pri_start_d IS NOT NULL
+        AND pri_start_d <= @to
+        AND (PRI_RES_D IS NULL OR PRI_RES_D > @to)
       GROUP BY
-        RTRIM(LTRIM(BU)),
+        RTRIM(LTRIM(ISNULL(BU, ''))),
         RTRIM(LTRIM(ISNULL(DEP, ''))),
         RTRIM(LTRIM(ISNULL(SEC, '')))
     `);
@@ -226,7 +233,8 @@ router.get("/emc", async (req, res) => {
         from,
         to,
         source: {
-          master: "tbl_hr_org",
+          master: "ZHR_EMPLOYEE",
+          masterAsOf: "month_end",
           structure: "ZHR_BU",
           transactions: "vw_employee_checkin",
         },
@@ -305,11 +313,30 @@ router.get("/emc/turnover", async (req, res) => {
   }
 });
 
-router.get("/emc/workforce", async (_req, res) => {
+router.get("/emc/workforce", async (req, res) => {
+  const now = new Date();
+  const year = Number(req.query.year) || now.getFullYear();
+  const month = Number(req.query.month) || now.getMonth() + 1;
+
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    res.status(400).json({ error: "year is invalid" });
+    return;
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    res.status(400).json({ error: "month is invalid (1-12)" });
+    return;
+  }
+
+  const { from, to } = monthRange(year, month);
+
   try {
     const pool = await getPool();
 
-    const result = await pool.request().query(`
+    // Workforce ณ สิ้นเดือนที่เลือก — ใช้วันเข้างาน/ลาออก เพื่อให้ตัวเลขเปลี่ยนตามเดือน
+    // PRI_RES_D = วันที่ลาออก, PRI_STATUS 1=ยังทำงาน 2=ลาออก
+    const request = pool.request();
+    request.input("to", sql.Date, to);
+    const result = await request.query(`
       SELECT
         RTRIM(LTRIM(ISNULL(emp_gender, ''))) AS gender,
         BIRTH_DATE AS birth_date,
@@ -319,21 +346,24 @@ router.get("/emc/workforce", async (_req, res) => {
         RTRIM(LTRIM(ISNULL(Child, ''))) AS child,
         RTRIM(LTRIM(ISNULL(Parent, ''))) AS parent,
         RTRIM(LTRIM(ISNULL(Company, ''))) AS company
-      FROM dbo.tbl_hr_org
+      FROM dbo.ZHR_EMPLOYEE
       WHERE emp_code IS NOT NULL
         AND LTRIM(RTRIM(emp_code)) <> ''
+        AND pri_start_d IS NOT NULL
+        AND pri_start_d <= @to
+        AND (PRI_RES_D IS NULL OR PRI_RES_D > @to)
     `);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const asOf = new Date(`${to}T00:00:00`);
+    asOf.setHours(0, 0, 0, 0);
 
     function ageYears(birth) {
       if (!birth) return null;
       const d = birth instanceof Date ? birth : new Date(birth);
       if (Number.isNaN(d.getTime())) return null;
-      let age = today.getFullYear() - d.getFullYear();
-      const md = today.getMonth() - d.getMonth();
-      if (md < 0 || (md === 0 && today.getDate() < d.getDate())) age -= 1;
+      let age = asOf.getFullYear() - d.getFullYear();
+      const md = asOf.getMonth() - d.getMonth();
+      if (md < 0 || (md === 0 && asOf.getDate() < d.getDate())) age -= 1;
       return age;
     }
 
@@ -475,9 +505,14 @@ router.get("/emc/workforce", async (_req, res) => {
         items: buses,
       },
       meta: {
-        source: "tbl_hr_org",
+        source: "ZHR_EMPLOYEE",
         genderField: "emp_gender",
-        asOf: today.toISOString().slice(0, 10),
+        filter: "month_end (pri_start_d / PRI_RES_D)",
+        year,
+        month,
+        from,
+        to,
+        asOf: to,
         employeeRows: result.recordset.length,
         buGroups: {
           HRM: "HRM + MHR",
