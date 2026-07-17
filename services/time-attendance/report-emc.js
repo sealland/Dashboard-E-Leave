@@ -384,7 +384,7 @@ function formatPct(value) {
   return formatNumber(value, 2);
 }
 
-function renderTurnover(payload, activeMonth) {
+function renderTurnover(payload) {
   if (!els.turnover) return;
 
   const current = payload?.current;
@@ -396,9 +396,7 @@ function renderTurnover(payload, activeMonth) {
 
   const labels = THAI_MONTHS.map((item) => item.short);
   const currentValues = current.months.map((item) => item.rate);
-  const previousValues = previous.months.map((item) => (
-    item.month <= activeMonth ? item.rate : null
-  ));
+  const previousValues = previous.months.map((item) => item.rate);
   const allValues = [...currentValues, ...previousValues].filter((value) => Number.isFinite(value));
   const maxValue = allValues.length ? Math.max(...allValues) : 0;
   const axisMax = Math.max(1, Math.ceil((maxValue * 1.15) / 0.5) * 0.5);
@@ -735,7 +733,7 @@ async function refresh() {
     workforceCacheKey = cacheKey;
     if (!turnoverCache) turnoverCache = turnoverPayload;
     renderWorkforce(workforceCache);
-    renderTurnover(turnoverCache, calendar.month);
+    renderTurnover(turnoverCache);
     renderChart(payload);
     renderTable(payload);
   } catch (error) {

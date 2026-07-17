@@ -55,7 +55,19 @@ const state = {
   branchGroups: [],
   reportPage: 1,
   reportPageSize: 10,
+  ppProductivityPayload: null,
 };
+
+function getPpCalendarRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    from: `${year}-01-01`,
+    to: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
 
 function setLoading(isLoading) {
   if (els.loadingBanner) els.loadingBanner.hidden = !isLoading;
@@ -1159,13 +1171,19 @@ function renderPpProductivity(payload) {
 
 async function loadPpProductivity() {
   if (!els.ppProductivity) return;
+  if (state.ppProductivityPayload) {
+    renderPpProductivity(state.ppProductivityPayload);
+    return;
+  }
   try {
+    const range = getPpCalendarRange();
     const payload = await fetchPpProductivity({
-      from: state.filters.from,
-      to: state.filters.to,
-      df_code: state.filters.df_code,
-      department: state.filters.department,
+      from: range.from,
+      to: range.to,
+      df_code: "all",
+      department: "all",
     });
+    state.ppProductivityPayload = payload;
     renderPpProductivity(payload);
   } catch (error) {
     els.ppProductivity.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
@@ -1223,7 +1241,7 @@ async function loadData() {
       els.branchCombinedChart.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     els.reportBody.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
-    if (els.ppProductivity) {
+    if (els.ppProductivity && !state.ppProductivityPayload) {
       els.ppProductivity.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     if (els.connectionStatus) {

@@ -22,6 +22,10 @@ function mapEmcBu(row) {
   const dep = String(row.dep || row.DEP || "").trim();
   const sec = String(row.sec || row.SEC || "").trim();
 
+  if (bu === "HRM" || bu === "MHR" || dep === "MHR" || sec === "MHR") {
+    return "HRM";
+  }
+
   if (
     bu === "OCP" ||
     dep === "OCP" ||
