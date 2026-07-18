@@ -59,3 +59,16 @@ export async function checkApiHealth() {
     return false;
   }
 }
+
+export async function fetchEmcLaborPerTon({ year, month }) {
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+  const response = await fetch(`${withBasePath("/api/emc/labor-per-ton")}?${params.toString()}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลดค่าแรงต่อตันได้");
+  }
+  return payload;
+}

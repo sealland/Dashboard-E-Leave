@@ -19,8 +19,8 @@
 | Charts | 2 separate line charts (branch + location) |
 | Period | YTD: Jan → selected EMC month/year |
 | Branch map | First letter of `DEPT_CODE`: `O` → `OCP`; `K` or `M` → `ZUBB` |
-| Visual | Monthly multi-series line charts |
-| Approach | Single API + hand-rolled SVG (same family as EMC turnover) |
+| Visual | Monthly **combo**: bars = labor baht (SALARY+OT), line = baht/ton (dual axis) |
+| Approach | Single API + hand-rolled SVG combo (OT PP pattern) |
 
 ## Formula detail
 
@@ -106,21 +106,19 @@ Join on `(year, month, DEPT_CODE)`.
 
 ### Location series limit
 
-- Prefer clarity: show up to **8** location series with highest **YTD ton**.
-- Remaining locations: omit from chart (optional `meta.locationOmitted` count).
+- Prefer clarity: show up to **8** location series with highest **YTD labor cost** `(SALARY+OT)`.
+- Remaining locations: omit from chart (`meta.locationOmitted`).
 - No “อื่นๆ” rollup in v1 unless product asks later.
 
 ## UI
 
-- New panel on `report-emc.html` titled **ค่าแรงต่อตัน (บาท/ตัน)**.
-- Subtitle: YTD ม.ค.–เดือนที่เลือก · สูตร (เงินเดือน+OT)÷ตัน
-- Two chart blocks side-by-side on desktop, stacked on mobile:
-  1. สาขา (OCP / ZUBB lines)
-  2. Location (multi-line)
-- Legend under/ beside each chart.
-- Tooltip on point hover: month, code, บาท/ตัน, optional ton + pay totals.
-- Empty state if no pay/ton in range.
-- Reload when EMC month/year filter changes (same as other EMC widgets).
+- Panel title: **ค่าแรง & ประสิทธิภาพค่าแรง**.
+- Two combo charts side-by-side:
+  1. Branch (ZUBB / OCP) — grouped bars per month + ratio lines
+  2. Location Top 8 by YTD labor — same combo pattern
+- Left axis: บาท · Right axis: บาท/ตัน
+- Tooltip: month, unit, baht, ton, baht/ton
+- Replaces the previous line-only labor-per-ton charts (no duplicate panels).
 
 ## Frontend files
 
@@ -150,4 +148,4 @@ Join on `(year, month, DEPT_CODE)`.
 ## Open points (resolved for v1)
 
 - Codes not starting with O/K/M: **excluded** from branch ton rollup.
-- Location overflow: **Top 8 by YTD ton**.
+- Location overflow: **Top 8 by YTD labor cost**.

@@ -37,6 +37,7 @@ const els = {
   chartLegend: document.getElementById("emc-chart-legend"),
   workforce: document.getElementById("workforce-body"),
   turnover: document.getElementById("turnover-body"),
+  laborPerTon: document.getElementById("labor-per-ton-body"),
 };
 
 /** สีช่อง treemap ตามรหัสกลุ่ม */
@@ -142,6 +143,507 @@ async function fetchTurnover(year) {
     throw new Error(payload.error || "ไม่สามารถโหลด Turnover Rate ได้");
   }
   return payload;
+}
+
+async function fetchLaborPerTon(filters) {
+  const params = new URLSearchParams({
+    year: String(filters.year),
+    month: String(filters.month),
+  });
+  const response = await fetch(`${withBasePath("/api/emc/labor-per-ton")}?${params.toString()}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลดค่าแรงต่อตันได้");
+  }
+  return payload;
+}
+
+const LABOR_LINE_COLORS = [
+  "#1d4ed8",
+  "#c81e1e",
+  "#0e7490",
+  "#d97706",
+  "#7c3aed",
+  "#15803d",
+  "#db2777",
+  "#475569",
+];
+
+function laborMonthLabels(monthKeys) {
+  return monthKeys.map((key) => {
+    const month = Number(key.slice(5, 7));
+    return THAI_MONTHS.find((item) => item.value === month)?.short || key;
+  });
+}
+
+function formatCompactLabor(value) {
+  const n = Number(value) || 0;
+  if (n >= 1_000_000) return `${formatNumber(n / 1_000_000, 1)}ล`;
+  if (n >= 1_000) return `${formatNumber(n / 1_000, 0)}พ`;
+  return formatNumber(n, 0);
+}
+
+function renderLaborLegend(series) {
+  return series
+    .map((item, index) => {
+      const color = LABOR_LINE_COLORS[index % LABOR_LINE_COLORS.length];
+      return `<button type="button" class="emc-labor-legend-item emc-labor-legend-btn" data-labor-code="${escapeHtml(item.code)}" style="--labor-color:${color}">
+        <i style="background:${color}"></i>${escapeHtml(item.name)}
+      </button>`;
+    })
+    .join("");
+}
+
+function laborTotalOf(point) {
+  return (Number(point?.salary) || 0) + (Number(point?.ot) || 0);
+}
+
+function renderLaborTotalLineChart(title, series, monthKeys) {
+  if (!series?.length || !monthKeys?.length) {
+    return `
+      <article class="emc-labor-card">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      </article>`;
+  }
+
+  const labels = laborMonthLabels(monthKeys);
+  const laborValues = series.flatMap((item) => item.points.map((point) => laborTotalOf(point)));
+  const maxLabor = Math.max(0, ...laborValues);
+  if (maxLabor <= 0) {
+    return `
+      <article class="emc-labor-card">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="empty-state">ไม่มีข้อมูลค่าแรงในช่วงที่เลือก</div>
+      </article>`;
+  }
+
+  const laborMax = Math.max(1, maxLabor * 1.15);
+  const ticks = 4;
+  const width = 920;
+  const height = 280;
+  const pad = { top: 28, right: 20, bottom: 42, left: 64 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const denom = Math.max(1, monthKeys.length - 1);
+  const xOf = (index) => pad.left + (plotW / denom) * index;
+  const yOf = (value) => pad.top + plotH - (value / laborMax) * plotH;
+
+  const grid = Array.from({ length: ticks + 1 }, (_, index) => {
+    const tick = (laborMax / ticks) * index;
+    const y = yOf(tick);
+    return `
+      <line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" class="emc-labor-grid"></line>
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatNumber(tick, 0)}</text>`;
+  }).join("");
+
+  const xLabels = labels
+    .map(
+      (label, index) =>
+        `<text x="${xOf(index)}" y="${height - 14}" text-anchor="middle" class="emc-labor-axis">${escapeHtml(label)}</text>`,
+    )
+    .join("");
+
+  const lines = series
+    .map((item, sIndex) => {
+      const color = LABOR_LINE_COLORS[sIndex % LABOR_LINE_COLORS.length];
+      const coords = item.points
+        .map((point, mIndex) => {
+          const labor = laborTotalOf(point);
+          return labor > 0 ? { x: xOf(mIndex), y: yOf(labor), labor, point } : null;
+        })
+        .filter(Boolean);
+      if (!coords.length) return "";
+      const path = coords
+        .map((c, index) => `${index === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+        .join(" ");
+      const dots = coords
+        .map((c) => {
+          const tip = `${item.name} ${c.point.month}: ${formatNumber(c.labor, 0)} บาท (ค่าแรง ${formatNumber(c.point.salary, 0)} · OT ${formatNumber(c.point.ot, 0)})`;
+          return `
+            <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1" class="emc-labor-series-dot">
+              <title>${escapeHtml(tip)}</title>
+            </circle>
+            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatCompactLabor(c.labor)}</text>`;
+        })
+        .join("");
+      return `
+        <g class="emc-labor-series" data-labor-code="${escapeHtml(item.code)}" tabindex="0" role="button" aria-label="${escapeHtml(item.name)}">
+          <path d="${path}" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" class="emc-labor-series-hit"></path>
+          <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" class="emc-labor-series-line"></path>
+          ${dots}
+        </g>`;
+    })
+    .join("");
+
+  return `
+    <article class="emc-labor-card">
+      <h3>${escapeHtml(title)}</h3>
+      <p class="emc-labor-card-desc">เส้น = ค่าแรงรวม (เงินเดือน+โอที) หน่วยบาท · คลิกเส้นหรือตำนานเพื่อไฮไลท์</p>
+      <div class="emc-labor-legend">${renderLaborLegend(series)}</div>
+      <div class="emc-labor-chart-wrap">
+        <svg viewBox="0 0 ${width} ${height}" class="emc-labor-chart" role="img" aria-label="${escapeHtml(title)}">
+          <text x="${pad.left}" y="16" class="emc-labor-axis-title">บาท</text>
+          ${grid}
+          ${lines}
+          ${xLabels}
+        </svg>
+      </div>
+    </article>`;
+}
+
+function renderLaborRatioChart(title, series, monthKeys) {
+  if (!series?.length || !monthKeys?.length) {
+    return `
+      <article class="emc-labor-card">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      </article>`;
+  }
+
+  const labels = laborMonthLabels(monthKeys);
+  const ratioValues = series.flatMap((item) =>
+    item.points.map((point) => point.laborPerTon).filter((value) => Number.isFinite(value)),
+  );
+  if (!ratioValues.length) {
+    return `
+      <article class="emc-labor-card">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="empty-state">ไม่มีค่าบาท/ตันที่คำนวณได้</div>
+      </article>`;
+  }
+
+  const ratioMax = Math.max(1, Math.max(...ratioValues) * 1.15);
+  const ticks = 4;
+  const width = 920;
+  const height = 280;
+  const pad = { top: 28, right: 20, bottom: 42, left: 64 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const denom = Math.max(1, monthKeys.length - 1);
+  const xOf = (index) => pad.left + (plotW / denom) * index;
+  const yOf = (value) => pad.top + plotH - (value / ratioMax) * plotH;
+
+  const grid = Array.from({ length: ticks + 1 }, (_, index) => {
+    const tick = (ratioMax / ticks) * index;
+    const y = yOf(tick);
+    return `
+      <line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" class="emc-labor-grid"></line>
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatNumber(tick, 0)}</text>`;
+  }).join("");
+
+  const xLabels = labels
+    .map(
+      (label, index) =>
+        `<text x="${xOf(index)}" y="${height - 14}" text-anchor="middle" class="emc-labor-axis">${escapeHtml(label)}</text>`,
+    )
+    .join("");
+
+  const lines = series
+    .map((item, sIndex) => {
+      const color = LABOR_LINE_COLORS[sIndex % LABOR_LINE_COLORS.length];
+      const coords = item.points
+        .map((point, mIndex) =>
+          Number.isFinite(point.laborPerTon)
+            ? { x: xOf(mIndex), y: yOf(point.laborPerTon), point }
+            : null,
+        )
+        .filter(Boolean);
+      if (!coords.length) return "";
+      const path = coords
+        .map((c, index) => `${index === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+        .join(" ");
+      const dots = coords
+        .map((c) => {
+          const tip = `${item.name} ${c.point.month}: ${formatNumber(c.point.laborPerTon, 0)} บาท/ตัน`;
+          return `
+            <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1" class="emc-labor-series-dot">
+              <title>${escapeHtml(tip)}</title>
+            </circle>
+            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatNumber(c.point.laborPerTon, 0)}</text>`;
+        })
+        .join("");
+      // Invisible wider stroke for easier click
+      return `
+        <g class="emc-labor-series" data-labor-code="${escapeHtml(item.code)}" tabindex="0" role="button" aria-label="${escapeHtml(item.name)}">
+          <path d="${path}" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" class="emc-labor-series-hit"></path>
+          <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" class="emc-labor-series-line"></path>
+          ${dots}
+        </g>`;
+    })
+    .join("");
+
+  return `
+    <article class="emc-labor-card emc-labor-card--ratio">
+      <h3>${escapeHtml(title)}</h3>
+      <p class="emc-labor-card-desc">เส้น = (เงินเดือน+โอที) ÷ ตันผลิต · คลิกเส้นหรือตำนานเพื่อไฮไลท์</p>
+      <div class="emc-labor-legend">${renderLaborLegend(series)}</div>
+      <div class="emc-labor-chart-wrap">
+        <svg viewBox="0 0 ${width} ${height}" class="emc-labor-chart emc-labor-chart--ratio" role="img" aria-label="${escapeHtml(title)}">
+          <text x="${pad.left}" y="16" class="emc-labor-axis-title">บาท/ตัน</text>
+          ${grid}
+          ${lines}
+          ${xLabels}
+        </svg>
+      </div>
+    </article>`;
+}
+
+function otPerTonOf(point) {
+  const ton = Number(point?.ton) || 0;
+  const ot = Number(point?.ot) || 0;
+  return ton > 0 ? ot / ton : null;
+}
+
+function renderOtPerTonChart(title, series, monthKeys) {
+  if (!series?.length || !monthKeys?.length) {
+    return `
+      <article class="emc-labor-card">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      </article>`;
+  }
+
+  const labels = laborMonthLabels(monthKeys);
+  const ratioValues = series.flatMap((item) =>
+    item.points.map((point) => otPerTonOf(point)).filter((value) => Number.isFinite(value)),
+  );
+  if (!ratioValues.length) {
+    return `
+      <article class="emc-labor-card">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="empty-state">ไม่มีค่า OT/ตันที่คำนวณได้</div>
+      </article>`;
+  }
+
+  const ratioMax = Math.max(1, Math.max(...ratioValues) * 1.15);
+  const ticks = 4;
+  const width = 920;
+  const height = 280;
+  const pad = { top: 28, right: 20, bottom: 42, left: 64 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const denom = Math.max(1, monthKeys.length - 1);
+  const xOf = (index) => pad.left + (plotW / denom) * index;
+  const yOf = (value) => pad.top + plotH - (value / ratioMax) * plotH;
+
+  const grid = Array.from({ length: ticks + 1 }, (_, index) => {
+    const tick = (ratioMax / ticks) * index;
+    const y = yOf(tick);
+    return `
+      <line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" class="emc-labor-grid"></line>
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatNumber(tick, 0)}</text>`;
+  }).join("");
+
+  const xLabels = labels
+    .map(
+      (label, index) =>
+        `<text x="${xOf(index)}" y="${height - 14}" text-anchor="middle" class="emc-labor-axis">${escapeHtml(label)}</text>`,
+    )
+    .join("");
+
+  const lines = series
+    .map((item, sIndex) => {
+      const color = LABOR_LINE_COLORS[sIndex % LABOR_LINE_COLORS.length];
+      const coords = item.points
+        .map((point, mIndex) => {
+          const value = otPerTonOf(point);
+          return Number.isFinite(value) ? { x: xOf(mIndex), y: yOf(value), value, point } : null;
+        })
+        .filter(Boolean);
+      if (!coords.length) return "";
+      const path = coords
+        .map((c, index) => `${index === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`)
+        .join(" ");
+      const dots = coords
+        .map((c) => {
+          const tip = `${item.name} ${c.point.month}: ${formatNumber(c.value, 0)} OT บาท/ตัน (OT ${formatNumber(c.point.ot, 0)} · ตัน ${formatNumber(c.point.ton, 1)})`;
+          return `
+            <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1" class="emc-labor-series-dot">
+              <title>${escapeHtml(tip)}</title>
+            </circle>
+            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatNumber(c.value, 0)}</text>`;
+        })
+        .join("");
+      return `
+        <g class="emc-labor-series" data-labor-code="${escapeHtml(item.code)}" tabindex="0" role="button" aria-label="${escapeHtml(item.name)}">
+          <path d="${path}" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" class="emc-labor-series-hit"></path>
+          <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" class="emc-labor-series-line"></path>
+          ${dots}
+        </g>`;
+    })
+    .join("");
+
+  return `
+    <article class="emc-labor-card emc-labor-card--ratio">
+      <h3>${escapeHtml(title)}</h3>
+      <p class="emc-labor-card-desc">เส้น = โอที ÷ ตันผลิต · แยกตาม Location · คลิกเส้นหรือตำนานเพื่อไฮไลท์</p>
+      <div class="emc-labor-legend">${renderLaborLegend(series)}</div>
+      <div class="emc-labor-chart-wrap">
+        <svg viewBox="0 0 ${width} ${height}" class="emc-labor-chart emc-labor-chart--ratio" role="img" aria-label="${escapeHtml(title)}">
+          <text x="${pad.left}" y="16" class="emc-labor-axis-title">OT บาท/ตัน</text>
+          ${grid}
+          ${lines}
+          ${xLabels}
+        </svg>
+      </div>
+    </article>`;
+}
+
+function renderOtPerTonSection(series, monthKeys) {
+  if (!series?.length) {
+    return `
+      <section class="emc-labor-block">
+        <header class="emc-labor-block-head"><h3>Location · OT ต่อตัน</h3></header>
+        <div class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      </section>`;
+  }
+  const blockId = "labor-block-location-ot-per-ton";
+  return `
+    <section class="emc-labor-block" data-labor-block="${blockId}" id="${blockId}">
+      <header class="emc-labor-block-head"><h3>Location (Top 8) · OT ต่อตัน</h3></header>
+      ${renderOtPerTonChart("Location (Top 8) · OT ต่อตัน (บาท/ตัน)", series, monthKeys)}
+    </section>`;
+}
+
+function renderLaborSection(sectionTitle, series, monthKeys, { showTotalChart = true, showDataTable = true } = {}) {
+  if (!series?.length) {
+    return `
+      <section class="emc-labor-block">
+        <header class="emc-labor-block-head"><h3>${escapeHtml(sectionTitle)}</h3></header>
+        <div class="empty-state">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      </section>`;
+  }
+
+  const labels = laborMonthLabels(monthKeys);
+  const blockId = `labor-block-${String(sectionTitle).replace(/[^a-zA-Z0-9ก-๙]+/g, "-")}`;
+  const totalHtml = showTotalChart
+    ? renderLaborTotalLineChart(`${sectionTitle} · ค่าแรงรวมรายเดือน (บาท)`, series, monthKeys)
+    : "";
+  const tableHtml = showDataTable
+    ? `
+      <details class="emc-labor-table-details" open>
+        <summary class="emc-labor-table-summary">
+          <span>ตาราง · ค่าแรง / โอที / ผลิต (ตัน)</span>
+          <span class="emc-labor-table-hint">คลิกเพื่อเปิด-ปิด · คลิกแถวเพื่อไฮไลท์กราฟ</span>
+        </summary>
+        <div class="emc-labor-table-block">
+          ${renderLaborDataTable(series, monthKeys, labels)}
+        </div>
+      </details>`
+    : "";
+  return `
+    <section class="emc-labor-block" data-labor-block="${escapeHtml(blockId)}" id="${escapeHtml(blockId)}">
+      <header class="emc-labor-block-head"><h3>${escapeHtml(sectionTitle)}</h3></header>
+      ${totalHtml}
+      ${renderLaborRatioChart(`${sectionTitle} · ค่าแรงต่อตัน (บาท/ตัน)`, series, monthKeys)}
+      ${tableHtml}
+    </section>`;
+}
+
+function renderLaborDataTable(series, monthKeys, labels) {
+  if (!series?.length || !monthKeys?.length) return "";
+
+  const metricDefs = [
+    { key: "salary", label: "ค่าแรง", digits: 0 },
+    { key: "ot", label: "โอที", digits: 0 },
+    { key: "ton", label: "ผลิต (ตัน)", digits: 1 },
+  ];
+
+  const head = `
+    <tr>
+      <th scope="col">รายการ</th>
+      ${labels.map((label) => `<th scope="col">${escapeHtml(label)}</th>`).join("")}
+    </tr>`;
+
+  const body = series
+    .flatMap((item) =>
+      metricDefs.map((metric) => {
+        const cells = monthKeys
+          .map((_, index) => {
+            const point = item.points[index] || {};
+            const value = Number(point[metric.key]) || 0;
+            return `<td>${formatNumber(value, metric.digits)}</td>`;
+          })
+          .join("");
+        return `
+          <tr class="emc-labor-table-row" data-labor-code="${escapeHtml(item.code)}" tabindex="0" role="button">
+            <th scope="row">${escapeHtml(item.name)} · ${escapeHtml(metric.label)}</th>
+            ${cells}
+          </tr>`;
+      }),
+    )
+    .join("");
+
+  return `
+    <div class="emc-labor-table-wrap">
+      <table class="emc-labor-table">
+        <thead>${head}</thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
+function setLaborHighlight(block, code) {
+  if (!block) return;
+  const active = code || null;
+  const current = block.dataset.laborActive || "";
+  const next = active && current === active ? "" : active || "";
+  if (next) block.dataset.laborActive = next;
+  else delete block.dataset.laborActive;
+
+  block.classList.toggle("has-labor-highlight", Boolean(next));
+
+  block.querySelectorAll("[data-labor-code]").forEach((el) => {
+    const match = next && el.dataset.laborCode === next;
+    el.classList.toggle("is-labor-active", Boolean(match));
+    el.classList.toggle("is-labor-dimmed", Boolean(next) && !match);
+  });
+}
+
+function bindLaborHighlight(container) {
+  if (!container) return;
+  container.querySelectorAll(".emc-labor-block").forEach((block) => {
+    block.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-labor-code]");
+      if (!target || !block.contains(target)) return;
+      event.preventDefault();
+      setLaborHighlight(block, target.dataset.laborCode);
+    });
+    block.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const target = event.target.closest("[data-labor-code]");
+      if (!target || !block.contains(target)) return;
+      event.preventDefault();
+      setLaborHighlight(block, target.dataset.laborCode);
+    });
+  });
+}
+
+function renderLaborPerTon(payload) {
+  if (!els.laborPerTon) return;
+  const months = payload?.months || [];
+  const branch = payload?.branch?.series || [];
+  const location = payload?.location?.series || [];
+  const omitted = payload?.meta?.locationOmitted || 0;
+
+  if (!branch.length && !location.length) {
+    els.laborPerTon.innerHTML = `<div class="empty-state">ไม่มีข้อมูลค่าแรง/ตันในช่วงที่เลือก</div>`;
+    return;
+  }
+
+  const note = omitted
+    ? `<p class="emc-labor-note">Location แสดง Top 8 ตามยอดค่าแรง YTD · ละไว้ ${formatNumber(omitted)} รายการ</p>`
+    : "";
+
+  els.laborPerTon.innerHTML = `
+    <div class="emc-labor-stack">
+      ${renderLaborSection("สาขา · ZUBB / OCP", branch, months)}
+      ${renderLaborSection("Location (Top 8)", location, months, { showTotalChart: false, showDataTable: false })}
+      ${renderOtPerTonSection(location, months)}
+    </div>
+    ${note}`;
+  bindLaborHighlight(els.laborPerTon);
 }
 
 function buildDonutSlices(entries, total) {
@@ -724,16 +1226,19 @@ async function refresh() {
     const turnoverPromise = turnoverCache
       ? Promise.resolve(turnoverCache)
       : fetchTurnover(calendar.year);
-    const [payload, workforcePayload, turnoverPayload] = await Promise.all([
+    const laborPromise = fetchLaborPerTon(filters);
+    const [payload, workforcePayload, turnoverPayload, laborPayload] = await Promise.all([
       payloadPromise,
       workforcePromise,
       turnoverPromise,
+      laborPromise,
     ]);
     workforceCache = workforcePayload;
     workforceCacheKey = cacheKey;
     if (!turnoverCache) turnoverCache = turnoverPayload;
     renderWorkforce(workforceCache);
     renderTurnover(turnoverCache);
+    renderLaborPerTon(laborPayload);
     renderChart(payload);
     renderTable(payload);
   } catch (error) {
@@ -746,6 +1251,9 @@ async function refresh() {
     }
     if (els.turnover && !turnoverCache) {
       els.turnover.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
+    if (els.laborPerTon) {
+      els.laborPerTon.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     els.status.textContent = "โหลดข้อมูลไม่สำเร็จ";
     els.status.classList.add("is-bad");

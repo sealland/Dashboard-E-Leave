@@ -2948,6 +2948,301 @@ tbody tr:hover {
   }
 }
 
+/* —— EMC labor per ton —— */
+.emc-labor-wrap {
+  min-height: 120px;
+}
+
+.emc-labor-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.emc-labor-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emc-labor-block-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  color: #0f172a;
+}
+
+.emc-labor-board {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.emc-labor-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.emc-labor-card h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.emc-labor-card-desc {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.emc-labor-value-label {
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.emc-labor-table-block {
+  margin-top: 4px;
+}
+
+.emc-labor-table-details {
+  margin-top: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.emc-labor-table-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+  user-select: none;
+}
+
+.emc-labor-table-summary::-webkit-details-marker {
+  display: none;
+}
+
+.emc-labor-table-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: #64748b;
+  transition: transform 0.15s ease;
+}
+
+.emc-labor-table-details[open] > .emc-labor-table-summary::before {
+  transform: rotate(90deg);
+}
+
+.emc-labor-table-details[open] {
+  background: #fff;
+}
+
+.emc-labor-table-hint {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.emc-labor-table-details .emc-labor-table-block {
+  margin: 0;
+  padding: 0 12px 12px;
+}
+
+.emc-labor-table-title {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.emc-labor-table-wrap {
+  margin-top: 0;
+  overflow: auto;
+  max-height: 420px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.emc-labor-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.emc-labor-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.emc-labor-legend-btn {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.emc-labor-legend-btn:hover {
+  border-color: #cbd5e1;
+}
+
+.emc-labor-legend-btn.is-labor-active {
+  border-color: var(--labor-color, #2563eb);
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px var(--labor-color, #2563eb);
+}
+
+.emc-labor-legend-btn.is-labor-dimmed {
+  opacity: 0.35;
+}
+
+.emc-labor-legend-item i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.emc-labor-series {
+  cursor: pointer;
+}
+
+.emc-labor-series.is-labor-dimmed {
+  opacity: 0.18;
+}
+
+.emc-labor-series.is-labor-active .emc-labor-series-line {
+  stroke-width: 3.5;
+}
+
+.emc-labor-series.is-labor-active .emc-labor-series-dot {
+  stroke-width: 2;
+}
+
+.emc-labor-table-row {
+  cursor: pointer;
+}
+
+.emc-labor-table-row.is-labor-active td,
+.emc-labor-table-row.is-labor-active th {
+  background: #eff6ff !important;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.emc-labor-table-row.is-labor-dimmed td,
+.emc-labor-table-row.is-labor-dimmed th {
+  opacity: 0.35;
+}
+
+.emc-labor-chart-wrap {
+  width: 100%;
+  overflow: hidden;
+}
+
+.emc-labor-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.emc-labor-grid {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.emc-labor-axis {
+  fill: #64748b;
+  font-size: 10px;
+}
+
+.emc-labor-axis--right {
+  fill: #94a3b8;
+}
+
+.emc-labor-axis-title {
+  fill: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.emc-labor-legend-item--hint {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.emc-labor-dot {
+  stroke: #fff;
+  stroke-width: 1;
+}
+
+.emc-labor-note {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.emc-labor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.emc-labor-table th,
+.emc-labor-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef2f7;
+  text-align: right;
+}
+
+.emc-labor-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  z-index: 1;
+}
+
+.emc-labor-table tbody th {
+  text-align: left;
+  font-weight: 600;
+  color: #334155;
+  background: #fff;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.emc-labor-table tbody tr:hover td,
+.emc-labor-table tbody tr:hover th {
+  background: #f1f5f9;
+}
+
+@media (max-width: 1100px) {
+  .emc-labor-board {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* —— OT × ZHR_PP productivity —— */
 .pp-productivity {
   display: flex;

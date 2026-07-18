@@ -317,6 +317,206 @@ router.get("/emc/turnover", async (req, res) => {
   }
 });
 
+/**
+ * ค่าแรงต่อตัน YTD — สาขา (PAY_COM + PP ม้วนตามตัวอักษรแรก) และ Location (PAY_DEPT + PP)
+ * สูตร: (SALARY + OT) / PP_TON
+ */
+router.get("/emc/labor-per-ton", async (req, res) => {
+  const now = new Date();
+  const year = Number(req.query.year) || now.getFullYear();
+  const month = Number(req.query.month) || now.getMonth() + 1;
+
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    res.status(400).json({ error: "year is invalid" });
+    return;
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    res.status(400).json({ error: "month is invalid (1-12)" });
+    return;
+  }
+
+  try {
+    const pool = await getPool();
+
+    const [payComResult, payDeptResult, ppResult] = await Promise.all([
+      pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month).query(`
+        SELECT
+          CAST(PAY_YEAR AS int) AS pay_year,
+          CAST(PAY_MONTH AS int) AS pay_month,
+          LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50)))) AS dept_code,
+          SUM(CAST(SALARY AS float)) AS salary,
+          SUM(CAST(OT AS float)) AS ot
+        FROM dbo.ZHR_PAY_COM
+        WHERE CAST(PAY_YEAR AS int) = @year
+          AND CAST(PAY_MONTH AS int) BETWEEN 1 AND @toMonth
+        GROUP BY PAY_YEAR, PAY_MONTH, LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50))))
+      `),
+      pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month).query(`
+        SELECT
+          CAST(PAY_YEAR AS int) AS pay_year,
+          CAST(PAY_MONTH AS int) AS pay_month,
+          LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50)))) AS dept_code,
+          SUM(CAST(SALARY AS float)) AS salary,
+          SUM(CAST(OT AS float)) AS ot
+        FROM dbo.ZHR_PAY_DEPT
+        WHERE CAST(PAY_YEAR AS int) = @year
+          AND CAST(PAY_MONTH AS int) BETWEEN 1 AND @toMonth
+        GROUP BY PAY_YEAR, PAY_MONTH, LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50))))
+      `),
+      pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month).query(`
+        SELECT
+          CAST(PP_YEAR AS int) AS pp_year,
+          CAST(PP_MONTH AS int) AS pp_month,
+          LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50)))) AS dept_code,
+          SUM(CAST(PP_TON AS float)) AS ton
+        FROM dbo.ZHR_PP
+        WHERE CAST(PP_YEAR AS int) = @year
+          AND CAST(PP_MONTH AS int) BETWEEN 1 AND @toMonth
+        GROUP BY PP_YEAR, PP_MONTH, LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50))))
+      `),
+    ]);
+
+    function mapDeptToBranch(deptCode) {
+      const first = String(deptCode || "")
+        .trim()
+        .charAt(0)
+        .toUpperCase();
+      if (first === "O") return "OCP";
+      if (first === "K" || first === "M") return "ZUBB";
+      return null;
+    }
+
+    function monthKey(y, m) {
+      return `${y}-${String(m).padStart(2, "0")}`;
+    }
+
+    const months = Array.from({ length: month }, (_, index) => monthKey(year, index + 1));
+
+    // Branch ton from PP
+    const branchTon = new Map(); // `${branch}|${monthKey}` -> ton
+    for (const row of ppResult.recordset) {
+      const branch = mapDeptToBranch(row.dept_code);
+      if (!branch) continue;
+      const key = `${branch}|${monthKey(row.pp_year, row.pp_month)}`;
+      branchTon.set(key, (branchTon.get(key) || 0) + (Number(row.ton) || 0));
+    }
+
+    // Branch pay from PAY_COM
+    const branchPay = new Map(); // `${branch}|${monthKey}` -> {salary, ot}
+    const branchCodes = new Set();
+    for (const row of payComResult.recordset) {
+      const code = String(row.dept_code || "").trim();
+      if (!code) continue;
+      branchCodes.add(code);
+      const key = `${code}|${monthKey(row.pay_year, row.pay_month)}`;
+      const prev = branchPay.get(key) || { salary: 0, ot: 0 };
+      prev.salary += Number(row.salary) || 0;
+      prev.ot += Number(row.ot) || 0;
+      branchPay.set(key, prev);
+    }
+
+    // Ensure branches that only appear in ton map are included
+    for (const key of branchTon.keys()) {
+      branchCodes.add(key.split("|")[0]);
+    }
+
+    const branchSeries = [...branchCodes]
+      .sort((a, b) => a.localeCompare(b, "th"))
+      .map((code) => {
+        const points = months.map((mk) => {
+          const pay = branchPay.get(`${code}|${mk}`) || { salary: 0, ot: 0 };
+          const ton = branchTon.get(`${code}|${mk}`) || 0;
+          const labor = pay.salary + pay.ot;
+          return {
+            month: mk,
+            salary: pay.salary,
+            ot: pay.ot,
+            ton,
+            laborPerTon: ton > 0 ? labor / ton : null,
+          };
+        });
+        return { code, name: code, points };
+      })
+      .filter((series) =>
+        series.points.some(
+          (p) => p.ton > 0 || p.salary > 0 || p.ot > 0 || Number.isFinite(p.laborPerTon),
+        ),
+      );
+
+    // Location: join PAY_DEPT + PP on dept+month
+    const locPay = new Map();
+    const locTon = new Map();
+    const locCodes = new Set();
+
+    for (const row of payDeptResult.recordset) {
+      const code = String(row.dept_code || "").trim();
+      if (!code) continue;
+      locCodes.add(code);
+      const key = `${code}|${monthKey(row.pay_year, row.pay_month)}`;
+      const prev = locPay.get(key) || { salary: 0, ot: 0 };
+      prev.salary += Number(row.salary) || 0;
+      prev.ot += Number(row.ot) || 0;
+      locPay.set(key, prev);
+    }
+    for (const row of ppResult.recordset) {
+      const code = String(row.dept_code || "").trim();
+      if (!code) continue;
+      locCodes.add(code);
+      const key = `${code}|${monthKey(row.pp_year, row.pp_month)}`;
+      locTon.set(key, (locTon.get(key) || 0) + (Number(row.ton) || 0));
+    }
+
+    const locationAll = [...locCodes].map((code) => {
+      const points = months.map((mk) => {
+        const pay = locPay.get(`${code}|${mk}`) || { salary: 0, ot: 0 };
+        const ton = locTon.get(`${code}|${mk}`) || 0;
+        const labor = pay.salary + pay.ot;
+        return {
+          month: mk,
+          salary: pay.salary,
+          ot: pay.ot,
+          ton,
+          laborPerTon: ton > 0 ? labor / ton : null,
+        };
+      });
+      const ytdLabor = points.reduce((sum, p) => sum + p.salary + p.ot, 0);
+      const ytdTon = points.reduce((sum, p) => sum + p.ton, 0);
+      return { code, name: code, points, ytdLabor, ytdTon };
+    });
+
+    const withSignal = locationAll.filter((series) =>
+      series.points.some(
+        (p) => p.ton > 0 || p.salary > 0 || p.ot > 0 || Number.isFinite(p.laborPerTon),
+      ),
+    );
+    withSignal.sort((a, b) => b.ytdLabor - a.ytdLabor || a.code.localeCompare(b.code, "th"));
+    const locationOmitted = Math.max(0, withSignal.length - 8);
+    const locationSeries = withSignal.slice(0, 8).map(({ ytdLabor, ytdTon, ...rest }) => rest);
+
+    res.json({
+      meta: {
+        year,
+        fromMonth: 1,
+        toMonth: month,
+        formula: "(SALARY+OT)/PP_TON",
+        unit: "THB/ton",
+        locationOmitted,
+        source: {
+          branchPay: "ZHR_PAY_COM",
+          locationPay: "ZHR_PAY_DEPT",
+          ton: "ZHR_PP.PP_TON",
+          branchMap: "O→OCP, K|M→ZUBB",
+        },
+      },
+      months,
+      branch: { series: branchSeries },
+      location: { series: locationSeries },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get("/emc/workforce", async (req, res) => {
   const now = new Date();
   const year = Number(req.query.year) || now.getFullYear();
