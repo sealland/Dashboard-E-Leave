@@ -38,7 +38,7 @@ DASHBOARDS: list[DashboardItem] = [
     {
         "id": "time-attendance",
         "title": "Time Attendance",
-        "description": "รายงานลา มาสาย และโอที จากระบบลงเวลา",
+        "description": "รายงานลา และโอที จากระบบลงเวลา",
         "subtitle": "ข้อมูลจากระบบลงเวลา",
         "url": "/hr-approve/",
         "icon": "attendance",
@@ -51,7 +51,7 @@ DASHBOARDS: list[DashboardItem] = [
     {
         "id": "emc-report",
         "title": "รายงาน EMC",
-        "description": "Absence & Attendance สรุปลา/ขาด/สาย/พักงาน ต่อ BU",
+        "description": "สรุป Absence & Attendance ต่อ BU จากระบบลงเวลา",
         "subtitle": "Absence & Attendance",
         "url": "/hr-approve/report-emc.html",
         "icon": "emc",

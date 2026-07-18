@@ -1,6 +1,6 @@
 # Open Windows Firewall for HR Dashboard (run as Administrator)
 
-$Port = 8000
+$Port = 8010
 $ruleName = "HR Approve Dashboard (TCP $Port)"
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)

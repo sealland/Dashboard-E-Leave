@@ -11,7 +11,7 @@ if ($task) {
     Write-Host "Task not found: $TaskName"
 }
 
-$ruleName = "HR Approve Dashboard (TCP 8000)"
+$ruleName = "HR Approve Dashboard (TCP 8010)"
 $rule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
 if ($rule) {
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)

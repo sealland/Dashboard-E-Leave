@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $TaskName = "HR_Approve_Dashboard"
-$Port = 8000
+$Port = 8010
 
 if (-not (Test-Path "$ProjectRoot\run.py")) {
     Write-Error "run.py not found at $ProjectRoot"

@@ -61,6 +61,7 @@ def log_startup(host: str, port: int) -> None:
 
 if __name__ == "__main__":
     host = os.getenv("DASHBOARD_HOST", "0.0.0.0")
-    port = int(os.getenv("DASHBOARD_PORT", "8000"))
+    # Default 8010 — matches IIS reverse proxy (dashboard-eleave → 8010)
+    port = int(os.getenv("DASHBOARD_PORT", "8010"))
     log_startup(host, port)
     uvicorn.run("app.main:app", host=host, port=port, reload=False)
