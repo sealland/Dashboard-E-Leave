@@ -87,12 +87,16 @@ function aggregateOtByGroup(rows, groupBy) {
         name,
         totalHours: 0,
         otPeople: new Set(),
+        branchCode: groupBy === "department" ? normalizeBranchCode(row.BR_CODE) : code,
       });
     }
 
     const group = groups.get(code);
     group.totalHours += hours;
     group.otPeople.add(empKey);
+    if (groupBy === "department" && !group.branchCode) {
+      group.branchCode = normalizeBranchCode(row.BR_CODE);
+    }
   });
 
   return groups;
@@ -115,6 +119,7 @@ export function buildOvertimeGroupSummary(otRows, headcount, groupBy = "branch")
       return {
         code,
         name: head?.name || ot?.name || code,
+        branchCode: groupBy === "department" ? head?.branchCode || ot?.branchCode || "" : code,
         totalEmployees,
         otPeople,
         totalHours,
