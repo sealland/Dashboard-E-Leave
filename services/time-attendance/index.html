@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
@@ -42,6 +42,7 @@
             <p class="eyebrow">รายงานเชิงลึก</p>
             <h1>รายงาน<span>สถิติการลางาน</span></h1>
             <p class="connection-status" id="connection-status">กำลังเชื่อมต่อระบบ...</p>
+            <p class="data-freshness-note">ข้อมูลในรายงานอัปเดตประมาณทุก 1 ชั่วโมง</p>
           </div>
 
           <div class="toolbar">
@@ -83,7 +84,7 @@
             <div class="panel-head">
               <div>
                 <h2>แผนกที่ขาด / สาย / ลาสูงสุด</h2>
-                <p>คลิกตัวเลขมาสายเพื่อดูรายละเอียดถึงต้นทาง</p>
+                <p>คลิกแผนกเพื่อกรองรายการที่ต้องติดตาม · คลิกลิงก์สายเพื่อดูรายละเอียด</p>
               </div>
               <div id="dept-bars-legend" class="legend"></div>
             </div>
@@ -117,6 +118,7 @@
               <div>
                 <h2>สรุปทุกแผนก</h2>
                 <p id="range-label">กำลังโหลดข้อมูล</p>
+                <p class="panel-hint">คลิกแถวแผนกเพื่อกรองรายการที่ต้องติดตาม</p>
               </div>
             </div>
             <div class="table-wrap compact dept-summary-table">
@@ -140,7 +142,7 @@
             <div class="panel-head">
               <div>
                 <h2>รายการที่ต้องติดตาม</h2>
-                <p>ซ่อนรายการปกติ — เรียงตามความสำคัญ</p>
+                <p>ซ่อนรายการปกติ — คลิกแผนกด้านซ้าย/กราฟด้านบนเพื่อกรอง</p>
               </div>
             </div>
             <div class="table-wrap">

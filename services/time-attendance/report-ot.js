@@ -48,6 +48,8 @@ const state = {
   filteredOtRows: [],
   headcount: null,
   selectedAvgBranch: null,
+  selectedAvgDept: null,
+  otSummary: null,
   reportPage: 1,
   reportPageSize: 10,
   ppProductivityPayload: null,
@@ -349,7 +351,10 @@ function getCombinedSeriesColor(index) {
   return COMBINED_SERIES_COLORS[index % COMBINED_SERIES_COLORS.length];
 }
 
-function renderAvgBarList(groups, { selectedCode = null, selectable = false } = {}) {
+function renderAvgBarList(
+  groups,
+  { selectedCode = null, selectable = false, dataKey = "avg-branch" } = {},
+) {
   if (!groups.length) {
     return '<div class="empty-state">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';
   }
@@ -364,7 +369,13 @@ function renderAvgBarList(groups, { selectedCode = null, selectable = false } = 
           const selected = selectedCode && selectedCode === group.code ? " is-selected" : "";
           const tag = selectable ? "button" : "div";
           const typeAttr = selectable ? ' type="button"' : "";
-          const dataAttr = selectable ? ` data-avg-branch="${escapeHtml(group.code)}"` : "";
+          const branchAttr =
+            dataKey === "avg-dept" && group.branchCode
+              ? ` data-avg-dept-branch="${escapeHtml(group.branchCode)}"`
+              : "";
+          const dataAttr = selectable
+            ? ` data-${dataKey}="${escapeHtml(group.code)}"${branchAttr}`
+            : "";
           return `
             <${tag} class="avg-bar-row${selected}${selectable ? " is-selectable" : ""}"${typeAttr}${dataAttr}>
               <div class="avg-bar-name" title="${escapeHtml(group.name)}">${escapeHtml(group.name)}</div>
@@ -379,6 +390,28 @@ function renderAvgBarList(groups, { selectedCode = null, selectable = false } = 
         })
         .join("")}
     </div>`;
+}
+
+function getReportPeople(summary) {
+  let people = summary?.employees || [];
+  if (state.selectedAvgBranch) {
+    people = people.filter((person) => person.branchCode === state.selectedAvgBranch);
+  }
+  if (state.selectedAvgDept) {
+    people = people.filter((person) => person.departmentCode === state.selectedAvgDept);
+  }
+  return people;
+}
+
+function describeAvgFilter() {
+  const parts = [];
+  if (state.selectedAvgBranch) parts.push(`สาขา ${state.selectedAvgBranch}`);
+  if (state.selectedAvgDept) parts.push(`แผนก ${state.selectedAvgDept}`);
+  return parts.length ? parts.join(" · ") : "";
+}
+
+function refreshReportFromSelection() {
+  if (state.otSummary) renderReport(state.otSummary);
 }
 
 function renderBranchCombinedChart(branchGroups) {
@@ -402,6 +435,7 @@ function renderBranchCombinedChart(branchGroups) {
     !branches.some((branch) => branch.code === state.selectedAvgBranch)
   ) {
     state.selectedAvgBranch = null;
+    state.selectedAvgDept = null;
   }
 
   const selectedCode = state.selectedAvgBranch;
@@ -426,7 +460,7 @@ function renderBranchCombinedChart(branchGroups) {
     };
     deptRows = buildOvertimeGroupSummary(branchOtRows, branchHeadcount, "department");
     rightTitle = `เฉลี่ย OT แผนก · ${selectedBranch?.name || selectedCode}`;
-    rightDesc = `${formatNumber(deptRows.length)} แผนกของสาขาที่เลือก`;
+    rightDesc = `คลิกแผนกเพื่อกรองรายละเอียดรายคน · ${formatNumber(deptRows.length)} แผนก`;
   } else {
     const allDepts = [...(state.deptGroups || [])]
       .sort(
@@ -442,12 +476,22 @@ function renderBranchCombinedChart(branchGroups) {
       }));
     deptRows = allDepts;
     rightTitle = "เฉลี่ย OT แผนก · TOP 10";
-    rightDesc = "ค่าเริ่มต้นแสดง 10 แผนกเฉลี่ยสูงสุด · คลิกสาขาซ้ายเพื่อกรอง";
+    rightDesc = "คลิกสาขาซ้าย หรือคลิกแผนกเพื่อกรองรายละเอียดรายคน";
   }
 
-  const clearBtn = selectedCode
-    ? `<button type="button" class="avg-clear-btn" data-avg-clear>ล้างการเลือกสาขา</button>`
-    : "";
+  if (
+    state.selectedAvgDept &&
+    !deptRows.some((dept) => dept.code === state.selectedAvgDept)
+  ) {
+    state.selectedAvgDept = null;
+  }
+
+  const clearParts = [];
+  if (selectedCode || state.selectedAvgDept) {
+    clearParts.push(
+      `<button type="button" class="avg-clear-btn" data-avg-clear>ล้างการเลือก</button>`,
+    );
+  }
 
   els.branchCombinedChart.innerHTML = `
     <div class="avg-pair-board">
@@ -455,25 +499,56 @@ function renderBranchCombinedChart(branchGroups) {
         <div class="avg-pair-head avg-pair-head--with-action">
           <div>
             <h3>เฉลี่ย OT แต่ละสาขา</h3>
-            <p>คลิกสาขาเพื่อดูแผนกในกราฟขวา</p>
+            <p>คลิกสาขาเพื่อดูแผนก · กรองรายละเอียดรายคน</p>
           </div>
-          ${clearBtn}
+          ${clearParts.join("")}
         </div>
-        ${renderAvgBarList(branches, { selectedCode, selectable: true })}
+        ${renderAvgBarList(branches, {
+          selectedCode,
+          selectable: true,
+          dataKey: "avg-branch",
+        })}
       </section>
       <section class="avg-pair-panel">
         <div class="avg-pair-head">
           <h3>${escapeHtml(rightTitle)}</h3>
           <p>${escapeHtml(rightDesc)}</p>
         </div>
-        ${renderAvgBarList(deptRows)}
+        ${renderAvgBarList(deptRows, {
+          selectedCode: state.selectedAvgDept,
+          selectable: true,
+          dataKey: "avg-dept",
+        })}
       </section>
     </div>`;
 
   els.branchCombinedChart.querySelectorAll("[data-avg-branch]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.selectedAvgBranch = button.dataset.avgBranch;
+      const next = button.dataset.avgBranch;
+      state.selectedAvgBranch = state.selectedAvgBranch === next ? null : next;
+      state.selectedAvgDept = null;
+      state.reportPage = 1;
       renderBranchCombinedChart(state.branchGroups);
+      refreshReportFromSelection();
+    });
+  });
+
+  els.branchCombinedChart.querySelectorAll("[data-avg-dept]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.avgDept;
+      const deptBranch = button.dataset.avgDeptBranch || "";
+      if (state.selectedAvgDept === next) {
+        state.selectedAvgDept = null;
+      } else {
+        state.selectedAvgDept = next;
+        if (!state.selectedAvgBranch && deptBranch) {
+          state.selectedAvgBranch = deptBranch;
+        }
+      }
+      state.reportPage = 1;
+      renderBranchCombinedChart(state.branchGroups);
+      refreshReportFromSelection();
+      document.getElementById("report-body")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
@@ -481,17 +556,22 @@ function renderBranchCombinedChart(branchGroups) {
   if (clearButton) {
     clearButton.addEventListener("click", () => {
       state.selectedAvgBranch = null;
+      state.selectedAvgDept = null;
+      state.reportPage = 1;
       renderBranchCombinedChart(state.branchGroups);
+      refreshReportFromSelection();
     });
   }
 }
 
 function renderReport(summary) {
-  const people = summary.employees;
+  const people = getReportPeople(summary);
+  const filterText = describeAvgFilter();
 
   if (!people.length) {
-    els.reportBody.innerHTML =
-      '<div class="empty-state">ไม่พบรายการ OT ในช่วงที่เลือก</div>';
+    els.reportBody.innerHTML = filterText
+      ? `<div class="empty-state">ไม่พบรายการ OT สำหรับ ${escapeHtml(filterText)}</div>`
+      : '<div class="empty-state">ไม่พบรายการ OT ในช่วงที่เลือก</div>';
     return;
   }
 
@@ -579,6 +659,7 @@ function renderReport(summary) {
       <div class="report-toolbar-meta">
         <strong>${formatNumber(people.length)} คน</strong>
         <span>แสดง ${formatNumber(start + 1)}-${formatNumber(Math.min(end, people.length))} จากทั้งหมด</span>
+        ${filterText ? `<span class="report-filter-chip">กรอง: ${escapeHtml(filterText)}</span>` : ""}
       </div>
       <div class="report-pagination">
         <label class="report-page-size">
@@ -909,6 +990,7 @@ function refresh() {
   state.deptGroups = deptGroups;
   state.filteredOtRows = otRows;
   state.headcount = headcount;
+  state.otSummary = summary;
   renderSummary(summary);
   renderGroupSummaryTable(els.branchSummaryBody, branchGroups);
   renderGroupSummaryTable(els.deptSummaryBody, deptGroups);
@@ -965,6 +1047,8 @@ async function loadData() {
 function bindEvents() {
   const onRangeOrTypeChange = () => {
     state.reportPage = 1;
+    state.selectedAvgBranch = null;
+    state.selectedAvgDept = null;
     state.filters.from = els.fromInput.value;
     state.filters.to = els.toInput.value;
     state.filters.df_code = els.dfCodeSelect.value;
@@ -982,11 +1066,15 @@ function bindEvents() {
   els.branchSelect.addEventListener("change", (event) => {
     state.reportPage = 1;
     state.filters.branch = event.target.value;
+    state.selectedAvgBranch = null;
+    state.selectedAvgDept = null;
     refresh();
   });
   els.departmentSelect.addEventListener("change", (event) => {
     state.reportPage = 1;
     state.filters.department = event.target.value;
+    state.selectedAvgBranch = null;
+    state.selectedAvgDept = null;
     refresh();
   });
 }

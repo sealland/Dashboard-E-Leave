@@ -31,6 +31,9 @@ const state = {
     branch: "all",
     department: "all",
   },
+  selectedDept: null,
+  lastFilteredRows: [],
+  lastSummary: null,
 };
 
 const els = {
@@ -319,8 +322,26 @@ function deptLateHref(departmentCode) {
   return buildReportUrl("report-late.html", { ...state.filters, department: departmentCode });
 }
 
+function setSelectedDept(departmentCode) {
+  const next = departmentCode || null;
+  state.selectedDept = state.selectedDept === next ? null : next;
+  renderDepartmentBars(state.lastSummary || { departments: [] });
+  renderDepartmentTable(state.lastSummary || { departments: [] });
+  renderDetailTable(state.lastFilteredRows || []);
+  if (state.selectedDept) {
+    els.detailTableBody?.closest(".panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function clearSelectedDept() {
+  state.selectedDept = null;
+  renderDepartmentBars(state.lastSummary || { departments: [] });
+  renderDepartmentTable(state.lastSummary || { departments: [] });
+  renderDetailTable(state.lastFilteredRows || []);
+}
+
 function renderDepartmentBars(summary) {
-  const rows = [...summary.departments]
+  const rows = [...(summary.departments || [])]
     .sort((a, b) => b.absent + b.lateTimes + b.leaveTotal - (a.absent + a.lateTimes + a.leaveTotal))
     .slice(0, 10);
 
@@ -332,26 +353,41 @@ function renderDepartmentBars(summary) {
 
   renderDepartmentBarsLegend(rows);
   const max = Math.max(...rows.map((row) => row.absent + row.lateTimes + row.leaveTotal), 1);
-  els.departmentBars.innerHTML = rows
-    .map((row) => {
-      const absentWidth = ((row.absent / max) * 100).toFixed(2);
-      const lateWidth = ((row.lateTimes / max) * 100).toFixed(2);
-      const lateLink = row.lateTimes > 0 ? deptLateHref(row.departmentCode) : null;
-      return `
-        <div class="dept-row">
-          <div class="dept-name">${escapeHtml(row.departmentCode)}</div>
-          <div class="dept-main">
-            <div class="dept-track">
-              <div class="dept-segment absent" style="width:${absentWidth}%"></div>
-              <div class="dept-segment late" style="width:${lateWidth}%"></div>
-              ${buildDepartmentLeaveSegments(row, max)}
+  const clearBtn = state.selectedDept
+    ? `<button type="button" class="dept-filter-clear" data-dept-clear>ล้างการเลือกแผนก</button>`
+    : "";
+  els.departmentBars.innerHTML = `
+    ${clearBtn}
+    ${rows
+      .map((row) => {
+        const absentWidth = ((row.absent / max) * 100).toFixed(2);
+        const lateWidth = ((row.lateTimes / max) * 100).toFixed(2);
+        const selected =
+          state.selectedDept && state.selectedDept === row.departmentCode ? " is-selected" : "";
+        return `
+          <button type="button" class="dept-row is-selectable${selected}" data-dept-filter="${escapeHtml(row.departmentCode)}">
+            <div class="dept-name">${escapeHtml(row.departmentCode)}</div>
+            <div class="dept-main">
+              <div class="dept-track">
+                <div class="dept-segment absent" style="width:${absentWidth}%"></div>
+                <div class="dept-segment late" style="width:${lateWidth}%"></div>
+                ${buildDepartmentLeaveSegments(row, max)}
+              </div>
+              ${buildDepartmentLeaveDetail(row)}
             </div>
-            ${buildDepartmentLeaveDetail(row)}
-          </div>
-        </div>
-      `;
-    })
-    .join("");
+          </button>
+        `;
+      })
+      .join("")}`;
+
+  els.departmentBars.querySelectorAll("[data-dept-filter]").forEach((button) => {
+    button.addEventListener("click", () => setSelectedDept(button.dataset.deptFilter));
+  });
+  const clearButton = els.departmentBars.querySelector("[data-dept-clear]");
+  if (clearButton) clearButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    clearSelectedDept();
+  });
 }
 
 function buildDonutSlices(entries, total, getColor = getCategoryColor) {
@@ -426,7 +462,7 @@ function renderBranchBreakdown(summary) {
 }
 
 function renderDepartmentTable(summary) {
-  const rows = summary.departments.filter(
+  const rows = (summary.departments || []).filter(
     (row) => row.absent + row.lateTimes + row.leaveTotal + row.scanIncomplete > 0,
   );
   if (!rows.length) {
@@ -438,12 +474,14 @@ function renderDepartmentTable(summary) {
     .map((row) => {
       const lateCell =
         row.lateTimes > 0
-          ? `<a class="table-link" href="${deptLateHref(row.departmentCode)}">${formatNumber(row.lateTimes)}</a>`
+          ? `<a class="table-link" href="${deptLateHref(row.departmentCode)}" data-dept-late-link>${formatNumber(row.lateTimes)}</a>`
           : formatNumber(row.lateTimes);
       const deptLabel = row.departmentCode || row.departmentName || "-";
       const deptTitle = row.departmentName && row.departmentName !== deptLabel ? row.departmentName : "";
+      const selected =
+        state.selectedDept && state.selectedDept === row.departmentCode ? " is-selected" : "";
       return `
-        <tr>
+        <tr class="dept-summary-row is-selectable${selected}" data-dept-filter="${escapeHtml(row.departmentCode)}" tabindex="0" role="button">
           <td class="col-dept" title="${escapeHtml(deptTitle || deptLabel)}">${escapeHtml(deptLabel)}</td>
           <td>${formatNumber(row.employees)}</td>
           <td>${formatNumber(row.absent)}</td>
@@ -453,38 +491,72 @@ function renderDepartmentTable(summary) {
         </tr>`;
     })
     .join("");
+
+  els.departmentTableBody.querySelectorAll("[data-dept-filter]").forEach((row) => {
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("[data-dept-late-link]")) return;
+      setSelectedDept(row.dataset.deptFilter);
+    });
+    row.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      setSelectedDept(row.dataset.deptFilter);
+    });
+  });
 }
 
 function renderDetailTable(rows) {
-  const tracked = [...rows]
+  const sourceRows = state.selectedDept
+    ? rows.filter((row) => row.departmentCode === state.selectedDept)
+    : rows;
+  const tracked = [...sourceRows]
     .map((row) => ({ ...row, status: getRowStatus(row) }))
     .filter((row) => row.status.priority > 0)
     .sort((a, b) => b.status.priority - a.status.priority || a.date.localeCompare(b.date));
 
+  const filterNote = state.selectedDept
+    ? `<div class="detail-filter-note">กรองแผนก <strong>${escapeHtml(state.selectedDept)}</strong> · <button type="button" class="dept-filter-clear" data-dept-clear>ล้างตัวกรอง</button></div>`
+    : "";
+
   if (!tracked.length) {
-    els.detailTableBody.innerHTML =
-      '<tr><td colspan="7">ไม่มีรายการที่ต้องติดตาม (ซ่อนรายการปกติแล้ว)</td></tr>';
+    els.detailTableBody.innerHTML = `
+      ${filterNote ? `<tr><td colspan="7">${filterNote}</td></tr>` : ""}
+      <tr><td colspan="7">${
+        state.selectedDept
+          ? "ไม่มีรายการที่ต้องติดตามในแผนกที่เลือก"
+          : "ไม่มีรายการที่ต้องติดตาม (ซ่อนรายการปกติแล้ว)"
+      }</td></tr>`;
+    bindDetailFilterClear();
     return;
   }
 
-  els.detailTableBody.innerHTML = tracked
-    .map((row) => {
-      const lateCell =
-        row.lateTimes > 0
-          ? `<a class="table-link" href="${buildReportUrl("report-late.html", { ...state.filters, department: row.departmentCode })}">${formatLateMinutes(row.lateMinutes)}</a>`
-          : "-";
-      return `
-        <tr>
-          <td>${escapeHtml(row.date)}</td>
-          <td>${escapeHtml(row.empKey)}</td>
-          <td>${escapeHtml(row.name)}</td>
-          <td>${escapeHtml(row.departmentName)}</td>
-          <td>${escapeHtml(formatShiftHours(row.shift))}</td>
-          <td><span class="status-pill ${row.status.className}">${row.status.label}</span></td>
-          <td>${lateCell}</td>
-        </tr>`;
-    })
-    .join("");
+  els.detailTableBody.innerHTML = `
+    ${filterNote ? `<tr class="detail-filter-row"><td colspan="7">${filterNote}</td></tr>` : ""}
+    ${tracked
+      .map((row) => {
+        const lateCell =
+          row.lateTimes > 0
+            ? `<a class="table-link" href="${buildReportUrl("report-late.html", { ...state.filters, department: row.departmentCode })}">${formatLateMinutes(row.lateMinutes)}</a>`
+            : "-";
+        return `
+          <tr>
+            <td>${escapeHtml(row.date)}</td>
+            <td>${escapeHtml(row.empKey)}</td>
+            <td>${escapeHtml(row.name)}</td>
+            <td>${escapeHtml(row.departmentName)}</td>
+            <td>${escapeHtml(formatShiftHours(row.shift))}</td>
+            <td><span class="status-pill ${row.status.className}">${row.status.label}</span></td>
+            <td>${lateCell}</td>
+          </tr>`;
+      })
+      .join("")}`;
+  bindDetailFilterClear();
+}
+
+function bindDetailFilterClear() {
+  els.detailTableBody.querySelectorAll("[data-dept-clear]").forEach((button) => {
+    button.addEventListener("click", clearSelectedDept);
+  });
 }
 
 function updateRangeLabel() {
@@ -503,6 +575,16 @@ function refresh() {
         (state.filters.department === "all" || row.departmentCode === state.filters.department),
     ),
   );
+
+  if (
+    state.selectedDept &&
+    !(summary.departments || []).some((dept) => dept.departmentCode === state.selectedDept)
+  ) {
+    state.selectedDept = null;
+  }
+
+  state.lastFilteredRows = filtered;
+  state.lastSummary = summary;
 
   renderCards(summary, previous, trends);
   renderDepartmentBars(summary);
@@ -549,6 +631,7 @@ async function loadData() {
 
 function bindEvents() {
   const onRangeChange = () => {
+    state.selectedDept = null;
     state.filters.from = els.fromInput.value;
     state.filters.to = els.toInput.value;
     if (state.filters.from && state.filters.to && state.filters.from > state.filters.to) {
@@ -564,11 +647,13 @@ function bindEvents() {
 
   els.branchSelect.addEventListener("change", (event) => {
     state.filters.branch = event.target.value;
+    state.selectedDept = null;
     refresh();
   });
 
   els.departmentSelect.addEventListener("change", (event) => {
     state.filters.department = event.target.value;
+    state.selectedDept = null;
     refresh();
   });
 }

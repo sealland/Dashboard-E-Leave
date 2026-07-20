@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
@@ -41,6 +41,7 @@
             <h1>รายงาน<span>ค่าล่วงเวลาการทำงาน</span></h1>
             <p class="page-subtitle" id="range-label">กำลังโหลดข้อมูล...</p>
             <p class="connection-status" id="connection-status">กำลังเชื่อมต่อ...</p>
+            <p class="data-freshness-note">ข้อมูลในรายงานอัปเดตประมาณทุก 1 ชั่วโมง</p>
           </div>
           <div class="toolbar">
             <label class="control">
@@ -114,7 +115,7 @@
             <div class="panel-head">
               <div>
                 <h2>เฉลี่ย OT ต่อสาขา / แผนก</h2>
-                <p>กราฟ 1 = เฉลี่ยชม./คน รายสาขา · กราฟ 2 = TOP 10 แผนก (ค่าเริ่มต้น) หรือแผนกของสาขาที่เลือก</p>
+                <p>คลิกสาขาซ้าย → แผนกขวา · คลิกแผนกเพื่อกรองรายละเอียดรายคนด้านล่าง</p>
               </div>
             </div>
             <div id="branch-combined-chart" class="branch-combined-content"></div>
@@ -196,7 +197,7 @@
             <div class="panel-head">
               <div>
                 <h2>รายละเอียดรายคน</h2>
-                <p>กดที่แต่ละรายการเพื่อดูสรุปรายวันและข้อมูลต้นทาง</p>
+                <p>กดที่แต่ละรายการเพื่อดูสรุปรายวัน · คลิกแผนกในกราฟด้านบนเพื่อกรอง</p>
               </div>
             </div>
             <div id="report-body" class="report-list"></div>
