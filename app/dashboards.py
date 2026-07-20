@@ -50,9 +50,9 @@ DASHBOARDS: list[DashboardItem] = [
     },
     {
         "id": "emc-report",
-        "title": "รายงาน EMC",
-        "description": "HR Monthly Performance Dashboard จากระบบลงเวลา",
-        "subtitle": "HR Monthly Performance Dashboard",
+        "title": "HR Monthly Performance Dashboard",
+        "description": "สรุป Workforce · Turnover · Absence · ค่าแรงต่อตัน จากระบบลงเวลา",
+        "subtitle": "รายงาน EMC",
         "url": "/hr-approve/report-emc.html",
         "icon": "emc",
         "coming_soon": False,

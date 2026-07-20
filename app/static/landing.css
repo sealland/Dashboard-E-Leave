@@ -47,11 +47,11 @@ a.landing-item:hover {
   height: 24px;
 }
 
-.landing-item-icon--leave { color: var(--hr); }
-.landing-item-icon--overtime { color: var(--n1); }
-.landing-item-icon--attendance { color: var(--n1); }
-.landing-item-icon--summary { color: var(--success); }
-.landing-item-icon--emc { color: #38bdf8; }
+.landing-item-icon--leave { color: #0e7490; }
+.landing-item-icon--overtime { color: #6d28d9; }
+.landing-item-icon--attendance { color: #1d4ed8; }
+.landing-item-icon--summary { color: #15803d; }
+.landing-item-icon--emc { color: #0369a1; }
 
 .landing-item-body {
   flex: 1;
@@ -85,18 +85,18 @@ a.landing-item:hover {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
-  background: rgba(148, 163, 184, 0.12);
+  background: rgba(74, 93, 120, 0.1);
   white-space: nowrap;
 }
 
 .landing-item-badge--ready {
-  color: #86efac;
-  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+  background: rgba(21, 128, 61, 0.12);
 }
 
 .landing-item-badge--scaffold {
-  color: #fbbf24;
-  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  background: rgba(217, 119, 6, 0.12);
 }
 
 .landing-item-action {

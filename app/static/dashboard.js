@@ -269,11 +269,15 @@ const barValueLabelsPlugin = {
         const value = dataset.data[index];
         if (value == null || value === 0) return;
         ctx.save();
-        ctx.fillStyle = "#e2e8f0";
-        ctx.font = "600 12px IBM Plex Sans Thai, sans-serif";
+        ctx.fillStyle = "#0f1f35";
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = 3;
+        ctx.font = "700 12px IBM Plex Sans Thai, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        ctx.fillText(Number(value).toLocaleString("th-TH"), bar.x, bar.y - 4);
+        const label = Number(value).toLocaleString("th-TH");
+        ctx.strokeText(label, bar.x, bar.y - 4);
+        ctx.fillText(label, bar.x, bar.y - 4);
         ctx.restore();
       });
     });
@@ -307,11 +311,15 @@ const stackedTotalLabelsPlugin = {
       const bar = topMeta.data[index];
       if (!bar) continue;
       ctx.save();
-      ctx.fillStyle = "#e2e8f0";
-      ctx.font = "600 12px IBM Plex Sans Thai, sans-serif";
+      ctx.fillStyle = "#0f1f35";
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 3;
+      ctx.font = "700 12px IBM Plex Sans Thai, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      ctx.fillText(total.toLocaleString("th-TH"), bar.x, bar.y - 4);
+      const label = total.toLocaleString("th-TH");
+      ctx.strokeText(label, bar.x, bar.y - 4);
+      ctx.fillText(label, bar.x, bar.y - 4);
       ctx.restore();
     }
   },
@@ -329,10 +337,26 @@ function renderChart(canvasId, chartKey, labels, datasets, type = "bar", stacked
     plugins,
     options: {
       responsive: true,
-      plugins: { legend: { labels: { color: "#8fa3bf" } } },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#0f1f35",
+            font: { weight: "600", size: 12 },
+          },
+        },
+      },
       scales: {
-        x: { stacked, ticks: { color: "#8fa3bf" }, grid: { color: "#2f3f56" } },
-        y: { stacked, ticks: { color: "#8fa3bf" }, grid: { color: "#2f3f56" }, beginAtZero: true },
+        x: {
+          stacked,
+          ticks: { color: "#0f1f35", font: { weight: "600", size: 11 } },
+          grid: { color: "#c8d5e6" },
+        },
+        y: {
+          stacked,
+          ticks: { color: "#0f1f35", font: { weight: "600", size: 11 } },
+          grid: { color: "#c8d5e6" },
+          beginAtZero: true,
+        },
       },
     },
   });
