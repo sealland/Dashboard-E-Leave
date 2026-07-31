@@ -6,6 +6,8 @@ export async function fetchOvertime(filters) {
   const to = filters.to || getDateRange(filters).to;
   const params = new URLSearchParams({ from, to });
   if (filters.df_code) params.set("df_code", filters.df_code);
+  const { withAuthParams } = await import("./prs-auth.js");
+  withAuthParams(params);
 
   const response = await fetch(`${withBasePath("/api/overtime")}?${params.toString()}`);
   const payload = await response.json();
@@ -24,6 +26,8 @@ export async function fetchPpProductivity(filters) {
   if (filters.department && filters.department !== "all") {
     params.set("department", filters.department);
   }
+  const { withAuthParams } = await import("./prs-auth.js");
+  withAuthParams(params);
 
   const response = await fetch(
     `${withBasePath("/api/overtime/pp-productivity")}?${params.toString()}`,
@@ -40,7 +44,8 @@ export async function fetchAttendance(filters) {
   const from = filters.from || getDateRange(filters).from;
   const to = filters.to || getDateRange(filters).to;
   const params = new URLSearchParams({ from, to });
-  // branch/department filtered client-side so dropdown options stay complete
+  const { withAuthParams } = await import("./prs-auth.js");
+  withAuthParams(params);
 
   const response = await fetch(`${withBasePath("/api/attendance")}?${params.toString()}`);
   const payload = await response.json();

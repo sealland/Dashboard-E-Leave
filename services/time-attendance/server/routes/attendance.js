@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getPool, sql } from "../db.js";
+import { buildAuthSql, getAuthorization } from "../auth.js";
 
 const router = Router();
 
@@ -54,8 +55,17 @@ router.get("/health", async (_req, res) => {
   }
 });
 
+router.get("/auth", async (req, res) => {
+  try {
+    const auth = await getAuthorization(req.query.c);
+    res.json(auth);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get("/attendance", async (req, res) => {
-  const { from, to, branch, department } = req.query;
+  const { from, to, branch, department, c } = req.query;
 
   if (!from || !to) {
     res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
@@ -63,12 +73,23 @@ router.get("/attendance", async (req, res) => {
   }
 
   try {
+    const auth = await getAuthorization(c);
+    if (!auth.allowed) {
+      res.status(403).json({
+        error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+        auth,
+        rows: [],
+        meta: { from, to, count: 0, auth },
+      });
+      return;
+    }
     const pool = await getPool();
     const request = pool.request();
     request.input("from", sql.Date, from);
     request.input("to", sql.Date, to);
     request.input("branch", sql.NVarChar(50), branch || null);
     request.input("department", sql.NVarChar(200), department || null);
+    const authSql = buildAuthSql(request, auth, { includeBranch: true });
 
     const result = await request.query(`
       SELECT
@@ -85,6 +106,7 @@ router.get("/attendance", async (req, res) => {
       WHERE TMR_DATE >= @from AND TMR_DATE <= @to
         AND (@branch IS NULL OR BR_CODE = @branch)
         AND (@department IS NULL OR DEPT_CODE = @department)
+        ${authSql}
       ORDER BY TMR_DATE, EMP_KEY, DF_CODE
     `);
 
@@ -92,7 +114,14 @@ router.get("/attendance", async (req, res) => {
 
     res.json({
       rows,
-      meta: { from, to, branch: branch || null, department: department || null, count: rows.length },
+      meta: {
+        from,
+        to,
+        branch: branch || null,
+        department: department || null,
+        count: rows.length,
+        auth,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

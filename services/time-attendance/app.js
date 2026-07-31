@@ -18,6 +18,7 @@ import {
 import { escapeHtml, formatDisplayDate, formatIsoDate, formatNumber, formatScanDateTime, formatShiftHours } from "./shared/format.js";
 import { formatLateMinutes } from "./shared/late-calc.js";
 import { getRowStatus } from "./shared/status.js";
+import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
 
 const state = {
   rows: [],
@@ -618,6 +619,7 @@ async function loadData() {
     setError("");
     if (els.connectionStatus) {
       els.connectionStatus.textContent = `เชื่อมต่อแล้ว · ${formatNumber(payload.meta?.count ?? state.rows.length)} แถว`;
+      if (payload.meta?.auth) renderAuthStatus(els.connectionStatus, payload.meta.auth);
       els.connectionStatus.classList.remove("is-error");
     }
     refresh();
@@ -661,4 +663,8 @@ function bindEvents() {
 runSelfCheck();
 bindEvents();
 setDefaults();
-loadData();
+preserveAuthInLinks();
+requireAuthorization().then((auth) => {
+  if (!auth) return;
+  loadData();
+});

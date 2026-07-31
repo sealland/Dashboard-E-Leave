@@ -65,5 +65,7 @@ export function buildReportUrl(reportPath, filters) {
   params.set("to", to);
   if (filters.branch && filters.branch !== "all") params.set("branch", filters.branch);
   if (filters.department && filters.department !== "all") params.set("department", filters.department);
+  const c = new URLSearchParams(window.location.search).get("c");
+  if (c) params.set("c", c.trim());
   return `${reportPath}?${params.toString()}`;
 }

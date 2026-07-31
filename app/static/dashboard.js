@@ -5,6 +5,7 @@ const state = {
   lastAlertKey: "",
   alerts: null,
   panelOpen: false,
+  authAllowed: null,
 };
 
 function loadDashboardConfig() {
@@ -174,7 +175,58 @@ function params() {
   if (stage) q.set("stage", stage);
   if (active) q.set("active", active);
   if (search) q.set("search", search);
+  const prsNo = getPrsNo();
+  if (prsNo) q.set("c", prsNo);
   return q;
+}
+
+function getPrsNo() {
+  return (new URLSearchParams(window.location.search).get("c") || "").trim();
+}
+
+function renderAuthBanner(auth) {
+  let el = document.getElementById("auth-banner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "auth-banner";
+    el.className = "auth-banner";
+    const header = document.querySelector(".header");
+    if (header) header.insertAdjacentElement("afterend", el);
+    else document.querySelector(".layout")?.prepend(el);
+  }
+  if (!auth?.active || !auth.allowed) {
+    const message =
+      auth?.message ||
+      (!auth?.active
+        ? "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)"
+        : `ไม่พบสิทธิ์ใน ZHR_AUTHORIZATION สำหรับ ${auth.prs_no}`);
+    el.textContent = message;
+    el.className = "auth-banner auth-banner--denied";
+    document.body.classList.add("auth-blocked");
+    clearDashboardView(message);
+    return false;
+  }
+  document.body.classList.remove("auth-blocked");
+  const deptText = auth.has_all_dept ? "ทุกแผนก" : `${auth.departments.length} แผนก`;
+  el.textContent = `สิทธิ์ ${auth.prs_no} · ${deptText} (ZHR_AUTHORIZATION)`;
+  el.className = "auth-banner auth-banner--limited";
+  return true;
+}
+
+function clearDashboardView(message) {
+  const msg = message || "ไม่พบสิทธิ์เข้าใช้งาน";
+  $("#kpi-grid").innerHTML = `<div class="loading">${msg}</div>`;
+  $("#metrics-grid").innerHTML = "";
+  const tbody = $("#records-table tbody");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="11">${msg}</td></tr>`;
+  if (state.charts.dept) {
+    state.charts.dept.destroy();
+    state.charts.dept = null;
+  }
+  if (state.charts.type) {
+    state.charts.type.destroy();
+    state.charts.type = null;
+  }
 }
 
 function fmtDate(v) {
@@ -203,7 +255,19 @@ function stageClass(stage) {
 
 async function fetchJson(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const payload = await res.json();
+      detail = payload.detail || payload.error || detail;
+      if (Array.isArray(detail)) {
+        detail = detail.map((item) => item.msg || JSON.stringify(item)).join(", ");
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
   return res.json();
 }
 
@@ -717,7 +781,12 @@ function maybeBrowserNotify(crit, warn, alerts) {
 }
 
 async function loadFilters() {
-  const data = await fetchJson("/api/filters");
+  const prsNo = getPrsNo();
+  const filterUrl = prsNo ? `/api/filters?c=${encodeURIComponent(prsNo)}` : "/api/filters";
+  const data = await fetchJson(filterUrl);
+  const allowed = renderAuthBanner(data.auth);
+  state.authAllowed = allowed;
+  if (!allowed) return false;
   const deptSel = $("#filter-dept");
   data.departments.forEach((d) => {
     const opt = document.createElement("option");
@@ -732,9 +801,11 @@ async function loadFilters() {
     opt.textContent = t.WBDT_THAIDESC || t.RQI_WBDT;
     typeSel.appendChild(opt);
   });
+  return true;
 }
 
 async function loadData() {
+  if (state.authAllowed === false) return;
   const q = params();
   try {
     const [summaryData, records, alerts] = await Promise.all([
@@ -751,6 +822,17 @@ async function loadData() {
     renderAlerts(alerts);
   } catch (err) {
     console.error(err);
+    const detail = err?.message || "";
+    if (detail.includes("403") || detail.includes("สิทธิ์")) {
+      state.authAllowed = false;
+      renderAuthBanner({
+        active: Boolean(getPrsNo()),
+        allowed: false,
+        prs_no: getPrsNo() || null,
+        message: detail.replace(/^Error:\s*/i, "") || "ไม่พบสิทธิ์เข้าใช้งาน",
+      });
+      return;
+    }
     $("#kpi-grid").innerHTML = `<div class="loading">โหลดข้อมูลไม่สำเร็จ — ตรวจสอบการเชื่อมต่อ database</div>`;
   }
 }
@@ -817,6 +899,7 @@ async function init() {
     $("#btn-notify").classList.add("active");
   }
   await loadFilters();
+  if (state.authAllowed === false) return;
   await loadData();
   setInterval(loadData, 5 * 60 * 1000);
 }

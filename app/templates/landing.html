@@ -84,5 +84,18 @@
       {% endfor %}
     </section>
   </div>
+  <script>
+    (function () {
+      const c = new URLSearchParams(window.location.search).get("c");
+      if (!c) return;
+      document.querySelectorAll("a.landing-item--active[href]").forEach((anchor) => {
+        try {
+          const url = new URL(anchor.getAttribute("href"), window.location.origin);
+          url.searchParams.set("c", c.trim());
+          anchor.setAttribute("href", url.pathname + url.search);
+        } catch (_) {}
+      });
+    })();
+  </script>
 </body>
 </html>

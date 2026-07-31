@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.auth import Authorization, get_authorization
 from app.dashboards import DASHBOARDS, get_dashboard, get_dashboard_config_json, get_dashboard_ui
 from app.requirements import NEXT_DASHBOARD_REQUIREMENTS
 from app.queries import get_alerts, get_by_dept, get_by_type, get_filter_options, get_records, get_summary
@@ -24,6 +25,21 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 def _nav_context(active_dashboard: str | None = None) -> dict:
     return {"dashboards": DASHBOARDS, "active_dashboard": active_dashboard}
+
+
+def _auth_from_c(c: Optional[str]) -> Authorization:
+    return get_authorization(c)
+
+
+def _require_auth(c: Optional[str]) -> Authorization:
+    auth = _auth_from_c(c)
+    if not auth.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=auth.to_dict().get("message")
+            or "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+        )
+    return auth
 
 
 def _dashboard_page_context(dashboard_id: str) -> dict:
@@ -68,6 +84,12 @@ async def dashboard_page(request: Request, dashboard_id: str):
     )
 
 
+@app.get("/api/auth")
+async def api_auth(c: Optional[str] = None):
+    auth = _auth_from_c(c)
+    return auth.to_dict()
+
+
 @app.get("/api/summary")
 async def api_summary(
     date_from: Optional[str] = None,
@@ -75,11 +97,34 @@ async def api_summary(
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
     doc_kind: Optional[str] = None,
+    c: Optional[str] = None,
 ):
+    auth = _require_auth(c)
     return {
-        "summary": get_summary(date_from=date_from, date_to=date_to, dept=dept, wbdt=wbdt, doc_kind=doc_kind),
-        "by_dept": get_by_dept(date_from=date_from, date_to=date_to, dept=dept, wbdt=wbdt, doc_kind=doc_kind),
-        "by_type": get_by_type(date_from=date_from, date_to=date_to, dept=dept, doc_kind=doc_kind),
+        "summary": get_summary(
+            date_from=date_from,
+            date_to=date_to,
+            dept=dept,
+            wbdt=wbdt,
+            doc_kind=doc_kind,
+            auth=auth,
+        ),
+        "by_dept": get_by_dept(
+            date_from=date_from,
+            date_to=date_to,
+            dept=dept,
+            wbdt=wbdt,
+            doc_kind=doc_kind,
+            auth=auth,
+        ),
+        "by_type": get_by_type(
+            date_from=date_from,
+            date_to=date_to,
+            dept=dept,
+            doc_kind=doc_kind,
+            auth=auth,
+        ),
+        "auth": auth.to_dict(),
     }
 
 
@@ -94,7 +139,9 @@ async def api_records(
     active: Optional[int] = None,
     search: Optional[str] = None,
     limit: int = Query(500, ge=1, le=2000),
+    c: Optional[str] = None,
 ):
+    auth = _require_auth(c)
     return get_records(
         date_from=date_from,
         date_to=date_to,
@@ -105,6 +152,7 @@ async def api_records(
         active=active,
         search=search,
         limit=limit,
+        auth=auth,
     )
 
 
@@ -117,7 +165,9 @@ async def api_alerts(
     warn_hr: int = Query(5, ge=1),
     crit_n1: int = Query(7, ge=1),
     crit_hr: int = Query(14, ge=1),
+    c: Optional[str] = None,
 ):
+    auth = _require_auth(c)
     return get_alerts(
         date_from=date_from,
         date_to=date_to,
@@ -126,20 +176,34 @@ async def api_alerts(
         warn_hr=warn_hr,
         crit_n1=crit_n1,
         crit_hr=crit_hr,
+        auth=auth,
     )
 
 
 @app.get("/api/filters")
-async def api_filters():
-    return get_filter_options()
+async def api_filters(c: Optional[str] = None):
+    auth = _auth_from_c(c)
+    if not auth.allowed:
+        return {
+            "departments": [],
+            "types": [],
+            "auth": auth.to_dict(),
+        }
+    payload = get_filter_options(auth=auth)
+    payload["auth"] = auth.to_dict()
+    return payload
 
 
 _PROXY_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
 
 @app.get("/hr-approve")
-async def redirect_hr_approve():
-    return RedirectResponse(url="/hr-approve/", status_code=307)
+async def redirect_hr_approve(request: Request):
+    query = request.url.query
+    target = "/hr-approve/"
+    if query:
+        target = f"{target}?{query}"
+    return RedirectResponse(url=target, status_code=307)
 
 
 @app.api_route("/hr-approve/", methods=_PROXY_METHODS)

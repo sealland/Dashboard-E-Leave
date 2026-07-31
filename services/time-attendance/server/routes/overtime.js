@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getPool, sql } from "../db.js";
 import { OT_DF_CODES } from "../../shared/df-code-map.js";
+import { buildAuthSql, getAuthorization } from "../auth.js";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ function normalizeRow(row) {
 }
 
 router.get("/overtime", async (req, res) => {
-  const { from, to, df_code: dfCode, branch, department } = req.query;
+  const { from, to, df_code: dfCode, branch, department, c } = req.query;
 
   if (!from || !to) {
     res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
@@ -29,6 +30,16 @@ router.get("/overtime", async (req, res) => {
   const codes = dfCode && dfCode !== "all" ? [String(dfCode)] : [...OT_DF_CODES];
 
   try {
+    const auth = await getAuthorization(c);
+    if (!auth.allowed) {
+      res.status(403).json({
+        error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+        auth,
+        rows: [],
+        meta: { from, to, count: 0, auth },
+      });
+      return;
+    }
     const pool = await getPool();
     const request = pool.request();
     request.input("from", sql.Date, from);
@@ -40,6 +51,7 @@ router.get("/overtime", async (req, res) => {
     codes.forEach((code, index) => {
       request.input(`df${index}`, sql.NVarChar(10), code);
     });
+    const authSql = buildAuthSql(request, auth, { includeBranch: true });
 
     const result = await request.query(`
       SELECT
@@ -54,6 +66,7 @@ router.get("/overtime", async (req, res) => {
         AND DF_CODE IN (${codeParams})
         AND (@branch IS NULL OR BR_CODE = @branch)
         AND (@department IS NULL OR DEPT_CODE = @department)
+        ${authSql}
       ORDER BY BR_CODE, DEPT_CODE, PRS_NO, TMR_DATE, DF_CODE
     `);
 
@@ -69,6 +82,7 @@ router.get("/overtime", async (req, res) => {
         branch: branch || null,
         department: department || null,
         count: rows.length,
+        auth,
       },
     });
   } catch (error) {
@@ -81,7 +95,7 @@ router.get("/overtime", async (req, res) => {
  * ขอบเขตแผนก: แผนกที่มีใน ZHR_PP (หรือ filter department ถ้าระบุ)
  */
 router.get("/overtime/pp-productivity", async (req, res) => {
-  const { from, to, df_code: dfCode, department } = req.query;
+  const { from, to, df_code: dfCode, department, c } = req.query;
 
   if (!from || !to) {
     res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
@@ -91,12 +105,24 @@ router.get("/overtime/pp-productivity", async (req, res) => {
   const codes = dfCode && dfCode !== "all" ? [String(dfCode)] : [...OT_DF_CODES];
 
   try {
+    const auth = await getAuthorization(c);
+    if (!auth.allowed) {
+      res.status(403).json({
+        error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+        auth,
+        months: [],
+        average: null,
+        meta: { from, to, auth },
+      });
+      return;
+    }
     const pool = await getPool();
 
     const ppReq = pool.request();
     ppReq.input("from", sql.Date, from);
     ppReq.input("to", sql.Date, to);
     ppReq.input("department", sql.NVarChar(200), department && department !== "all" ? department : null);
+    const ppAuthSql = buildAuthSql(ppReq, auth, { includeBranch: false });
 
     const ppResult = await ppReq.query(`
       SELECT
@@ -107,6 +133,7 @@ router.get("/overtime/pp-productivity", async (req, res) => {
       WHERE DATEFROMPARTS(PP_YEAR, PP_MONTH, 1) >= DATEFROMPARTS(YEAR(@from), MONTH(@from), 1)
         AND DATEFROMPARTS(PP_YEAR, PP_MONTH, 1) <= DATEFROMPARTS(YEAR(@to), MONTH(@to), 1)
         AND (@department IS NULL OR DEPT_CODE = @department)
+        ${ppAuthSql}
       GROUP BY PP_YEAR, PP_MONTH
       ORDER BY PP_YEAR, PP_MONTH
     `);
@@ -119,6 +146,7 @@ router.get("/overtime/pp-productivity", async (req, res) => {
     codes.forEach((code, index) => {
       otReq.input(`df${index}`, sql.NVarChar(10), code);
     });
+    const otAuthSql = buildAuthSql(otReq, auth, { alias: "c", includeBranch: true });
 
     const otResult = await otReq.query(`
       SELECT
@@ -133,6 +161,7 @@ router.get("/overtime/pp-productivity", async (req, res) => {
           (@department IS NOT NULL AND c.DEPT_CODE = @department)
           OR (@department IS NULL AND c.DEPT_CODE IN (SELECT DISTINCT DEPT_CODE FROM dbo.ZHR_PP))
         )
+        ${otAuthSql}
       GROUP BY YEAR(c.TMR_DATE), MONTH(c.TMR_DATE)
       ORDER BY YEAR(c.TMR_DATE), MONTH(c.TMR_DATE)
     `);
@@ -194,6 +223,7 @@ router.get("/overtime/pp-productivity", async (req, res) => {
         df_code: dfCode || "all",
         department: department && department !== "all" ? department : null,
         source: { steel: "ZHR_PP.PP_TON", ot: "vw_employee_checkin", people: "distinct EMP_KEY with OT" },
+        auth,
       },
     });
   } catch (error) {

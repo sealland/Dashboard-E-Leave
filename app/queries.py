@@ -6,6 +6,8 @@ import math
 from typing import Any, Optional
 
 import numpy as np
+
+from app.auth import Authorization, apply_auth_dept_sql
 from db.connection import execute_query
 
 NOT_CANCELLED = "ISNULL(API_APRS, 0) <> 101"
@@ -106,6 +108,7 @@ def _apply_filters(
     doc_kind: Optional[str],
     stage: Optional[str],
     active: Optional[int],
+    auth: Optional[Authorization] = None,
 ) -> tuple[str, dict[str, Any]]:
     if date_from:
         sql += " AND RQI_DATE >= :date_from"
@@ -124,6 +127,7 @@ def _apply_filters(
         params["wbdt"] = wbdt
 
     sql = _apply_doc_kind(sql, doc_kind)
+    sql, params = apply_auth_dept_sql(sql, params, auth)
 
     if stage == "cancelled":
         sql += f" AND {IS_CANCELLED}"
@@ -176,10 +180,20 @@ def _filter_base(
     doc_kind: Optional[str] = None,
     stage: Optional[str] = None,
     active: Optional[int] = None,
+    auth: Optional[Authorization] = None,
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {}
     return _apply_filters(
-        BASE_SELECT, params, date_from, date_to, dept, wbdt, doc_kind, stage, active
+        BASE_SELECT,
+        params,
+        date_from,
+        date_to,
+        dept,
+        wbdt,
+        doc_kind,
+        stage,
+        active,
+        auth=auth,
     )
 
 
@@ -189,8 +203,9 @@ def get_summary(
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
     doc_kind: Optional[str] = None,
+    auth: Optional[Authorization] = None,
 ) -> dict:
-    base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind)
+    base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind, auth=auth)
 
     sql = f"""
     SELECT
@@ -221,8 +236,9 @@ def get_by_dept(
     dept: Optional[str] = None,
     wbdt: Optional[int] = None,
     doc_kind: Optional[str] = None,
+    auth: Optional[Authorization] = None,
 ) -> list[dict]:
-    base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind)
+    base, params = _filter_base(date_from, date_to, dept, wbdt, doc_kind, auth=auth)
 
     if doc_kind == "all":
         sql = f"""
@@ -266,8 +282,9 @@ def get_by_type(
     date_to: Optional[str] = None,
     dept: Optional[str] = None,
     doc_kind: Optional[str] = None,
+    auth: Optional[Authorization] = None,
 ) -> list[dict]:
-    base, params = _filter_base(date_from, date_to, dept, None, doc_kind)
+    base, params = _filter_base(date_from, date_to, dept, None, doc_kind, auth=auth)
 
     sql = f"""
     SELECT
@@ -300,10 +317,20 @@ def get_records(
     active: Optional[int] = None,
     search: Optional[str] = None,
     limit: int = 500,
+    auth: Optional[Authorization] = None,
 ) -> list[dict]:
     params: dict[str, Any] = {"limit": limit}
     sql, params = _apply_filters(
-        BASE_SELECT, params, date_from, date_to, dept, wbdt, doc_kind, stage, active
+        BASE_SELECT,
+        params,
+        date_from,
+        date_to,
+        dept,
+        wbdt,
+        doc_kind,
+        stage,
+        active,
+        auth=auth,
     )
 
     if search:
@@ -327,6 +354,7 @@ def get_alert_items(
     crit_n1: int = 7,
     crit_hr: int = 14,
     limit: int = 15,
+    auth: Optional[Authorization] = None,
 ) -> list[dict]:
     params: dict[str, Any] = {
         "warn_n1": warn_n1,
@@ -336,7 +364,16 @@ def get_alert_items(
         "limit": limit,
     }
     base, params = _apply_filters(
-        BASE_SELECT, params, date_from, date_to, None, None, doc_kind, "incomplete", None
+        BASE_SELECT,
+        params,
+        date_from,
+        date_to,
+        None,
+        None,
+        doc_kind,
+        "incomplete",
+        None,
+        auth=auth,
     )
 
     sql = f"""
@@ -374,6 +411,7 @@ def get_alerts(
     warn_hr: int = 5,
     crit_n1: int = 7,
     crit_hr: int = 14,
+    auth: Optional[Authorization] = None,
 ) -> dict:
     params: dict[str, Any] = {
         "warn_n1": warn_n1,
@@ -382,7 +420,16 @@ def get_alerts(
         "crit_hr": crit_hr,
     }
     base, params = _apply_filters(
-        BASE_SELECT, params, date_from, date_to, None, None, doc_kind, "incomplete", None
+        BASE_SELECT,
+        params,
+        date_from,
+        date_to,
+        None,
+        None,
+        doc_kind,
+        "incomplete",
+        None,
+        auth=auth,
     )
 
     sql = f"""
@@ -405,19 +452,21 @@ def get_alerts(
         warn_hr=warn_hr,
         crit_n1=crit_n1,
         crit_hr=crit_hr,
+        auth=auth,
     )
     return row
 
 
-def get_filter_options() -> dict:
-    depts = execute_query(
-        """
+def get_filter_options(auth: Optional[Authorization] = None) -> dict:
+    dept_sql = """
         SELECT DISTINCT DEPT_CODE, DEPT_THAIDESC
         FROM dbo.ZHR_WEBAPP
         WHERE DEPT_CODE IS NOT NULL
-        ORDER BY DEPT_CODE
-        """
-    )
+    """
+    dept_params: dict[str, Any] = {}
+    dept_sql, dept_params = apply_auth_dept_sql(dept_sql, dept_params, auth)
+    dept_sql += " ORDER BY DEPT_CODE"
+    depts = execute_query(dept_sql, dept_params)
     types = execute_query(
         """
         SELECT DISTINCT RQI_WBDT,

@@ -63,5 +63,10 @@
         </section>
       </main>
     </div>
+    <script type="module">
+      import { preserveAuthInLinks, requireAuthorization } from "./shared/prs-auth.js";
+      preserveAuthInLinks();
+      requireAuthorization();
+    </script>
   </body>
 </html>

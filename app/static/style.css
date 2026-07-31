@@ -362,6 +362,41 @@ h2 {
   font-size: 0.92rem;
 }
 
+.auth-banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.auth-banner--open {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.auth-banner--limited {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #1d4ed8;
+}
+
+.auth-banner--denied {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #b91c1c;
+}
+
+body.auth-blocked .filters,
+body.auth-blocked .kpi-grid,
+body.auth-blocked .metrics,
+body.auth-blocked .charts,
+body.auth-blocked .table-section {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 .scaffold-banner strong {
   color: #b45309;
 }

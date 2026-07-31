@@ -16,6 +16,7 @@ import {
   formatLooseDate,
   formatNumber,
 } from "./shared/format.js";
+import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
 
 const els = {
   fromInput: document.getElementById("from-input"),
@@ -93,6 +94,8 @@ function syncUrl() {
   }
   if (state.filters.branch !== "all") params.set("branch", state.filters.branch);
   if (state.filters.department !== "all") params.set("department", state.filters.department);
+  const c = new URLSearchParams(window.location.search).get("c");
+  if (c) params.set("c", c.trim());
   history.replaceState(null, "", `?${params.toString()}`);
 }
 
@@ -1023,6 +1026,9 @@ async function loadData() {
       els.connectionStatus.textContent = `เชื่อมต่อแล้ว · OT ${formatNumber(otPayload.meta?.count ?? 0)} แถว · พนักงาน ${formatNumber(getHeadcount().totalEmployees)} คน`;
       els.connectionStatus.classList.remove("is-error");
     }
+    if (otPayload.meta?.auth) {
+      renderAuthStatus(els.connectionStatus, otPayload.meta.auth);
+    }
     refresh();
   } catch (error) {
     const message = `<tr><td colspan="4">${escapeHtml(error.message)}</td></tr>`;
@@ -1081,4 +1087,8 @@ function bindEvents() {
 
 bindEvents();
 setDefaults();
-loadData();
+preserveAuthInLinks();
+requireAuthorization().then((auth) => {
+  if (!auth) return;
+  loadData();
+});

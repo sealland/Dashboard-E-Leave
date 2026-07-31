@@ -10,6 +10,7 @@ import {
   passesFilters as rowPassesFilters,
 } from "./shared/filters.js";
 import { escapeHtml, formatDisplayDate, formatNumber, formatShiftHours } from "./shared/format.js";
+import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
 
 const els = {
   fromInput: document.getElementById("from-input"),
@@ -49,6 +50,8 @@ function syncUrl() {
   params.set("to", state.filters.to);
   if (state.filters.branch !== "all") params.set("branch", state.filters.branch);
   if (state.filters.department !== "all") params.set("department", state.filters.department);
+  const c = new URLSearchParams(window.location.search).get("c");
+  if (c) params.set("c", c.trim());
   history.replaceState(null, "", `?${params.toString()}`);
 }
 
@@ -298,6 +301,7 @@ async function loadData() {
     populateFilters();
     if (els.connectionStatus) {
       els.connectionStatus.textContent = `เชื่อมต่อแล้ว · ${formatNumber(payload.meta?.count ?? 0)} แถว`;
+      if (payload.meta?.auth) renderAuthStatus(els.connectionStatus, payload.meta.auth);
     }
     refresh();
   } catch (error) {
@@ -337,4 +341,8 @@ function bindEvents() {
 
 bindEvents();
 setDefaults();
-loadData();
+preserveAuthInLinks();
+requireAuthorization().then((auth) => {
+  if (!auth) return;
+  loadData();
+});
