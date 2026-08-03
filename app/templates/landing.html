@@ -86,15 +86,96 @@
   </div>
   <script>
     (function () {
-      const c = new URLSearchParams(window.location.search).get("c");
-      if (!c) return;
+      const AUTH_KEY = "hr_dashboard_prs_c";
+      const params = new URLSearchParams(window.location.search);
+      let c = (params.get("c") || "").trim();
+      if (c) {
+        try {
+          sessionStorage.setItem(AUTH_KEY, c);
+        } catch (_) {}
+      } else {
+        try {
+          c = (sessionStorage.getItem(AUTH_KEY) || "").trim();
+        } catch (_) {}
+        if (c) {
+          params.set("c", c);
+          history.replaceState({}, "", "/?" + params.toString());
+        }
+      }
+      const layout = document.querySelector(".landing-layout");
+
+      function showAuthStatus(auth) {
+        const el = document.getElementById("auth-banner");
+        if (!el || !auth || !auth.allowed) return;
+        const deptText = auth.has_all_dept ? "ทุกแผนก" : (auth.departments || []).length + " แผนก";
+        el.hidden = false;
+        el.className = "site-nav-auth auth-banner--limited";
+        el.textContent = "สิทธิ์ " + auth.prs_no + " · " + deptText;
+      }
+
+      function block(message) {
+        document.body.classList.add("auth-blocked");
+        if (layout) layout.setAttribute("aria-hidden", "true");
+        const el = document.getElementById("auth-banner");
+        if (el) {
+          el.hidden = false;
+          el.className = "site-nav-auth auth-banner--denied";
+          el.textContent = message;
+        }
+        let overlay = document.getElementById("auth-blocked-overlay");
+        if (!overlay) {
+          overlay = document.createElement("div");
+          overlay.id = "auth-blocked-overlay";
+          overlay.className = "auth-blocked-overlay";
+          document.body.appendChild(overlay);
+        }
+        overlay.innerHTML =
+          '<div class="auth-blocked-card">' +
+          "<strong>ไม่พบสิทธิ์เข้าใช้งาน</strong>" +
+          "<p>" + message + "</p>" +
+          '<p class="auth-blocked-hint">ต้องระบุรหัสพนักงานใน URL เช่น <code>/?c=PRS_NO</code></p>' +
+          "</div>";
+        overlay.hidden = false;
+      }
+
+      function withAuthHref(href) {
+        const url = new URL(href, window.location.origin);
+        url.searchParams.set("c", c);
+        return url.pathname + url.search + url.hash;
+      }
+
+      const brand = document.querySelector(".site-nav-brand");
+      if (brand && c) {
+        brand.setAttribute("href", "/?c=" + encodeURIComponent(c));
+      }
+
+      if (!c) {
+        block("ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)");
+        return;
+      }
+
       document.querySelectorAll("a.landing-item--active[href]").forEach((anchor) => {
         try {
-          const url = new URL(anchor.getAttribute("href"), window.location.origin);
-          url.searchParams.set("c", c.trim());
-          anchor.setAttribute("href", url.pathname + url.search);
+          anchor.setAttribute("href", withAuthHref(anchor.getAttribute("href")));
         } catch (_) {}
       });
+
+      fetch("/api/auth?c=" + encodeURIComponent(c))
+        .then((res) => res.json())
+        .then((auth) => {
+          if (!auth || !auth.allowed) {
+            block(
+              auth && auth.message
+                ? auth.message
+                : "ไม่พบสิทธิ์ใน ZHR_AUTHORIZATION สำหรับ " + c
+            );
+            return;
+          }
+          showAuthStatus(auth);
+        })
+        .catch(() => {
+          block("ไม่สามารถตรวจสอบสิทธิ์ได้ — ลองใหม่อีกครั้ง");
+        });
     })();
   </script>
 </body>

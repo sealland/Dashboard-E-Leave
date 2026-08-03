@@ -1,6 +1,31 @@
 <nav class="site-nav" aria-label="เมนูหลัก">
-  <a class="site-nav-brand" href="/">
+  <a
+    class="site-nav-brand"
+    id="site-nav-brand"
+    href="{% if auth_c %}/?c={{ auth_c | urlencode }}{% else %}/{% endif %}"
+  >
     <span class="site-nav-brand-mark" aria-hidden="true">D</span>
     <span class="site-nav-brand-text">HR Dashboard</span>
   </a>
+  <div id="auth-banner" class="site-nav-auth" hidden></div>
 </nav>
+<script>
+  (function () {
+    var brand = document.getElementById("site-nav-brand");
+    if (!brand) return;
+    var key = "hr_dashboard_prs_c";
+    var c = (new URLSearchParams(window.location.search).get("c") || "").trim();
+    if (c) {
+      try {
+        sessionStorage.setItem(key, c);
+      } catch (e) {}
+    } else {
+      try {
+        c = (sessionStorage.getItem(key) || "").trim();
+      } catch (e) {}
+    }
+    if (c) {
+      brand.setAttribute("href", "/?c=" + encodeURIComponent(c));
+    }
+  })();
+</script>

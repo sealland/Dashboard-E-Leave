@@ -1,6 +1,13 @@
 import { withBasePath } from "./shared/base-path.js";
 import { checkApiHealth } from "./shared/api.js";
 import { escapeHtml, formatNumber } from "./shared/format.js";
+import {
+  ensureAuthInUrl,
+  preserveAuthInLinks,
+  requireAuthorization,
+  renderAuthStatus,
+  withAuthParams,
+} from "./shared/prs-auth.js";
 
 const THAI_MONTHS = [
   { value: 1, label: "มกราคม", short: "ม.ค." },
@@ -86,7 +93,7 @@ function parseFilters() {
 }
 
 function writeUrl(filters) {
-  const params = new URLSearchParams();
+  const params = withAuthParams(new URLSearchParams());
   params.set("month", String(filters.month));
   params.set("year", String(filters.year));
   const next = `${window.location.pathname}?${params.toString()}`;
@@ -111,10 +118,12 @@ function fillSelectors(filters) {
 }
 
 async function fetchEmc(filters) {
-  const params = new URLSearchParams({
-    month: String(filters.month),
-    year: String(filters.year),
-  });
+  const params = withAuthParams(
+    new URLSearchParams({
+      month: String(filters.month),
+      year: String(filters.year),
+    }),
+  );
   const response = await fetch(`${withBasePath("/api/emc")}?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {
@@ -124,10 +133,12 @@ async function fetchEmc(filters) {
 }
 
 async function fetchWorkforce(filters) {
-  const params = new URLSearchParams({
-    month: String(filters.month),
-    year: String(filters.year),
-  });
+  const params = withAuthParams(
+    new URLSearchParams({
+      month: String(filters.month),
+      year: String(filters.year),
+    }),
+  );
   const response = await fetch(`${withBasePath("/api/emc/workforce")}?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {
@@ -137,7 +148,8 @@ async function fetchWorkforce(filters) {
 }
 
 async function fetchTurnover(year) {
-  const response = await fetch(`${withBasePath("/api/emc/turnover")}?year=${encodeURIComponent(year)}`);
+  const params = withAuthParams(new URLSearchParams({ year: String(year) }));
+  const response = await fetch(`${withBasePath("/api/emc/turnover")}?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error || "ไม่สามารถโหลด Turnover Rate ได้");
@@ -146,10 +158,12 @@ async function fetchTurnover(year) {
 }
 
 async function fetchLaborPerTon(filters) {
-  const params = new URLSearchParams({
-    year: String(filters.year),
-    month: String(filters.month),
-  });
+  const params = withAuthParams(
+    new URLSearchParams({
+      year: String(filters.year),
+      month: String(filters.month),
+    }),
+  );
   const response = await fetch(`${withBasePath("/api/emc/labor-per-ton")}?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {
@@ -1241,6 +1255,9 @@ async function refresh() {
     renderLaborPerTon(laborPayload);
     renderChart(payload);
     renderTable(payload);
+    if (payload?.meta?.auth) {
+      renderAuthStatus(els.status, payload.meta.auth);
+    }
   } catch (error) {
     els.body.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     if (els.chart) {
@@ -1270,4 +1287,9 @@ function init() {
   refresh();
 }
 
-init();
+ensureAuthInUrl();
+preserveAuthInLinks();
+requireAuthorization().then((auth) => {
+  if (!auth) return;
+  init();
+});

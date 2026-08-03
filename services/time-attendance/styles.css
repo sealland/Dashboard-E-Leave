@@ -689,16 +689,43 @@ select {
   font-weight: 600;
 }
 
-.auth-status.is-auth-open {
+.auth-status-chip {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 40;
+  max-width: min(calc(100vw - 32px), 420px);
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #c8d5e6;
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.3;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auth-status.is-auth-open,
+.auth-status-chip.is-auth-open {
   color: #64748b;
 }
 
-.auth-status.is-auth-limited {
+.auth-status.is-auth-limited,
+.auth-status-chip.is-auth-limited {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.25);
   color: #1d4ed8;
 }
 
-.auth-status.is-auth-denied {
+.auth-status.is-auth-denied,
+.auth-status-chip.is-auth-denied {
   color: #b91c1c;
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.3);
+  white-space: normal;
 }
 
 .auth-blocked-overlay {

@@ -1,5 +1,16 @@
 import { getPool, sql } from "./db.js";
 
+function isAll(value) {
+  return String(value || "").trim().toUpperCase() === "ALL";
+}
+
+function normalizeCode(value) {
+  let text = String(value ?? "").trim();
+  if (!text || text.toLowerCase() === "nan" || text.toLowerCase() === "none") return "";
+  if (text.endsWith(".0") && /^\d+\.0$/.test(text)) text = text.slice(0, -2);
+  return text;
+}
+
 /**
  * Load authorization scope from dbo.ZHR_AUTHORIZATION.
  * Empty `c` / PRS_NO → deny (ต้องระบุ ?c=).
@@ -11,6 +22,7 @@ export async function getAuthorization(prsNo) {
       prs_no: null,
       departments: [],
       branches: [],
+      employees: [],
       has_all_dept: false,
       has_all_branch: false,
       active: false,
@@ -24,9 +36,16 @@ export async function getAuthorization(prsNo) {
     .request()
     .input("prs_no", sql.NVarChar(50), code)
     .query(`
-      SELECT DEPT_CODE, BR_CODE
+      SELECT
+        LTRIM(RTRIM(CAST(DEPT_CODE AS NVARCHAR(100)))) AS DEPT_CODE,
+        LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(100)))) AS BR_CODE
       FROM dbo.ZHR_AUTHORIZATION
-      WHERE PRS_NO = @prs_no
+      WHERE LTRIM(RTRIM(CAST(PRS_NO AS NVARCHAR(50)))) = @prs_no
+         OR (
+              TRY_CAST(PRS_NO AS BIGINT) IS NOT NULL
+              AND TRY_CAST(@prs_no AS BIGINT) IS NOT NULL
+              AND TRY_CAST(PRS_NO AS BIGINT) = TRY_CAST(@prs_no AS BIGINT)
+         )
     `);
 
   const departments = [];
@@ -37,17 +56,17 @@ export async function getAuthorization(prsNo) {
   let hasAllBranch = false;
 
   for (const row of result.recordset) {
-    const dept = String(row.DEPT_CODE || "").trim();
-    const branch = String(row.BR_CODE || "").trim();
+    const dept = normalizeCode(row.DEPT_CODE);
+    const branch = normalizeCode(row.BR_CODE);
     if (dept) {
-      if (dept.toUpperCase() === "ALL") hasAllDept = true;
+      if (isAll(dept)) hasAllDept = true;
       else if (!deptSeen.has(dept)) {
         deptSeen.add(dept);
         departments.push(dept);
       }
     }
     if (branch) {
-      if (branch.toUpperCase() === "ALL") hasAllBranch = true;
+      if (isAll(branch)) hasAllBranch = true;
       else if (!branchSeen.has(branch)) {
         branchSeen.add(branch);
         branches.push(branch);
@@ -61,6 +80,8 @@ export async function getAuthorization(prsNo) {
     prs_no: code,
     departments,
     branches,
+    // Reserved for EMC person-level allow-list (future)
+    employees: [],
     has_all_dept: hasAllDept,
     has_all_branch: hasAllBranch,
     active: true,

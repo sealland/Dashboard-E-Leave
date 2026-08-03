@@ -1,7 +1,24 @@
 import { Router } from "express";
 import { getPool, sql } from "../db.js";
+import { buildAuthSql, getAuthorization } from "../auth.js";
 
 const router = Router();
+
+/**
+ * EMC auth gate. Scope today = DEPT/BR from ZHR_AUTHORIZATION.
+ * Next: person-level allow-list for selected EMC viewers (filter EMP_KEY / PRS_NO).
+ */
+async function requireEmcAuth(req, res) {
+  const auth = await getAuthorization(req.query.c);
+  if (!auth.allowed) {
+    res.status(403).json({
+      error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+      auth,
+    });
+    return null;
+  }
+  return auth;
+}
 
 const METRIC_DEFS = [
   { id: "sick_cert", label: "ป่วยมีใบรับรองแพทย์", unit: "ชม./คน", kind: "hours" },
@@ -91,12 +108,16 @@ router.get("/emc", async (req, res) => {
   const { from, to } = monthRange(year, month);
 
   try {
+    const auth = await requireEmcAuth(req, res);
+    if (!auth) return;
+
     const pool = await getPool();
 
     // Headcount ณ สิ้นเดือนที่เลือก จาก ZHR_EMPLOYEE
     // PRI_RES_D = วันที่ลาออก, PRI_STATUS 1=ยังทำงาน 2=ลาออก (ใช้วันที่เพื่อย้อนหลังรายเดือนได้)
     const headcountRequest = pool.request();
     headcountRequest.input("to", sql.Date, to);
+    // TODO(emc-person-scope): filter ZHR_EMPLOYEE by allowed EMP_KEY when person-level rights exist
     const headcountResult = await headcountRequest.query(`
       SELECT
         RTRIM(LTRIM(ISNULL(BU, ''))) AS bu,
@@ -138,6 +159,7 @@ router.get("/emc", async (req, res) => {
     const request = pool.request();
     request.input("from", sql.Date, from);
     request.input("to", sql.Date, to);
+    const authSql = buildAuthSql(request, auth, { alias: "c", includeBranch: true });
 
     const txResult = await request.query(`
       SELECT
@@ -176,6 +198,7 @@ router.get("/emc", async (req, res) => {
             AND LTRIM(RTRIM(c.DF_LEAVE)) <> '/'
           )
         )
+        ${authSql}
     `);
 
     const sumsByMetricBu = Object.fromEntries(
@@ -236,6 +259,7 @@ router.get("/emc", async (req, res) => {
         month,
         from,
         to,
+        auth,
         source: {
           master: "ZHR_EMPLOYEE",
           masterAsOf: "month_end",
@@ -259,6 +283,9 @@ router.get("/emc/turnover", async (req, res) => {
   }
 
   try {
+    const auth = await requireEmcAuth(req, res);
+    if (!auth) return;
+
     const pool = await getPool();
     const request = pool.request();
     request.input("year", sql.Int, baseYear);
@@ -310,6 +337,7 @@ router.get("/emc/turnover", async (req, res) => {
       previous: buildSeries(baseYear - 1),
       meta: {
         source: "ZHR_TURNOVER",
+        auth,
       },
     });
   } catch (error) {
@@ -336,10 +364,20 @@ router.get("/emc/labor-per-ton", async (req, res) => {
   }
 
   try {
+    const auth = await requireEmcAuth(req, res);
+    if (!auth) return;
+
     const pool = await getPool();
 
+    const payComReq = pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month);
+    const payDeptReq = pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month);
+    const ppReq = pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month);
+    // Location / PP use DEPT_CODE; branch pay (OCP/ZUBB) stays as-is for company rollup
+    const payDeptAuth = buildAuthSql(payDeptReq, auth, { includeBranch: false });
+    const ppAuth = buildAuthSql(ppReq, auth, { includeBranch: false });
+
     const [payComResult, payDeptResult, ppResult] = await Promise.all([
-      pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month).query(`
+      payComReq.query(`
         SELECT
           CAST(PAY_YEAR AS int) AS pay_year,
           CAST(PAY_MONTH AS int) AS pay_month,
@@ -351,7 +389,7 @@ router.get("/emc/labor-per-ton", async (req, res) => {
           AND CAST(PAY_MONTH AS int) BETWEEN 1 AND @toMonth
         GROUP BY PAY_YEAR, PAY_MONTH, LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50))))
       `),
-      pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month).query(`
+      payDeptReq.query(`
         SELECT
           CAST(PAY_YEAR AS int) AS pay_year,
           CAST(PAY_MONTH AS int) AS pay_month,
@@ -361,9 +399,10 @@ router.get("/emc/labor-per-ton", async (req, res) => {
         FROM dbo.ZHR_PAY_DEPT
         WHERE CAST(PAY_YEAR AS int) = @year
           AND CAST(PAY_MONTH AS int) BETWEEN 1 AND @toMonth
+          ${payDeptAuth}
         GROUP BY PAY_YEAR, PAY_MONTH, LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50))))
       `),
-      pool.request().input("year", sql.Int, year).input("toMonth", sql.Int, month).query(`
+      ppReq.query(`
         SELECT
           CAST(PP_YEAR AS int) AS pp_year,
           CAST(PP_MONTH AS int) AS pp_month,
@@ -372,6 +411,7 @@ router.get("/emc/labor-per-ton", async (req, res) => {
         FROM dbo.ZHR_PP
         WHERE CAST(PP_YEAR AS int) = @year
           AND CAST(PP_MONTH AS int) BETWEEN 1 AND @toMonth
+          ${ppAuth}
         GROUP BY PP_YEAR, PP_MONTH, LTRIM(RTRIM(CAST(DEPT_CODE AS nvarchar(50))))
       `),
     ]);
@@ -501,6 +541,7 @@ router.get("/emc/labor-per-ton", async (req, res) => {
         formula: "(SALARY+OT)/PP_TON",
         unit: "THB/ton",
         locationOmitted,
+        auth,
         source: {
           branchPay: "ZHR_PAY_COM",
           locationPay: "ZHR_PAY_DEPT",
@@ -534,10 +575,14 @@ router.get("/emc/workforce", async (req, res) => {
   const { from, to } = monthRange(year, month);
 
   try {
+    const auth = await requireEmcAuth(req, res);
+    if (!auth) return;
+
     const pool = await getPool();
 
     // Workforce ณ สิ้นเดือนที่เลือก — ใช้วันเข้างาน/ลาออก เพื่อให้ตัวเลขเปลี่ยนตามเดือน
     // PRI_RES_D = วันที่ลาออก, PRI_STATUS 1=ยังทำงาน 2=ลาออก
+    // TODO(emc-person-scope): filter by allowed EMP_KEY when person-level rights exist
     const request = pool.request();
     request.input("to", sql.Date, to);
     const result = await request.query(`
@@ -718,6 +763,7 @@ router.get("/emc/workforce", async (req, res) => {
         to,
         asOf: to,
         employeeRows: result.recordset.length,
+        auth,
         buGroups: {
           HRM: "HRM + MHR",
           MMT: "MMT + 998",

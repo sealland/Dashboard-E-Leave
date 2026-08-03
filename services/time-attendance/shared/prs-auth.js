@@ -1,7 +1,44 @@
 import { withBasePath } from "./base-path.js";
 
+const AUTH_STORAGE_KEY = "hr_dashboard_prs_c";
+
+function readStoredPrsNo() {
+  try {
+    return (sessionStorage.getItem(AUTH_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function storePrsNo(code) {
+  const value = String(code || "").trim();
+  if (!value) return;
+  try {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, value);
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 export function getPrsNo() {
-  return (new URLSearchParams(window.location.search).get("c") || "").trim();
+  const fromUrl = (new URLSearchParams(window.location.search).get("c") || "").trim();
+  if (fromUrl) {
+    storePrsNo(fromUrl);
+    return fromUrl;
+  }
+  return readStoredPrsNo();
+}
+
+/** If we have c in session but not in the address bar, put it back into the URL. */
+export function ensureAuthInUrl() {
+  const c = getPrsNo();
+  if (!c) return c;
+  const params = new URLSearchParams(window.location.search);
+  if ((params.get("c") || "").trim() === c) return c;
+  params.set("c", c);
+  const next = `${window.location.pathname}?${params.toString()}${window.location.hash || ""}`;
+  window.history.replaceState({}, "", next);
+  return c;
 }
 
 export function withAuthParams(params) {
@@ -16,7 +53,7 @@ export function preserveAuthInUrl(params) {
 
 /** Keep ?c= on relative nav links within Time Attendance. */
 export function preserveAuthInLinks(root = document) {
-  const c = getPrsNo();
+  const c = ensureAuthInUrl();
   if (!c) return;
   root.querySelectorAll("a[href]").forEach((anchor) => {
     const href = anchor.getAttribute("href");
@@ -41,6 +78,7 @@ export function preserveAuthInLinks(root = document) {
 }
 
 export async function fetchAuthorization() {
+  ensureAuthInUrl();
   const params = withAuthParams(new URLSearchParams());
   const response = await fetch(`${withBasePath("/api/auth")}?${params.toString()}`);
   const payload = await response.json();
@@ -53,15 +91,10 @@ export async function fetchAuthorization() {
 export function renderAuthStatus(el, auth) {
   let target = document.getElementById("auth-status");
   if (!target) {
-    target = document.createElement("p");
+    target = document.createElement("div");
     target.id = "auth-status";
-    target.className = "auth-status connection-status";
-    const anchor = el || document.getElementById("connection-status");
-    if (anchor?.parentNode) {
-      anchor.insertAdjacentElement("beforebegin", target);
-    } else {
-      document.querySelector(".page-head > div")?.appendChild(target);
-    }
+    target.className = "auth-status-chip";
+    document.body.appendChild(target);
   }
 
   if (!auth?.active || !auth.allowed) {
@@ -71,8 +104,7 @@ export function renderAuthStatus(el, auth) {
         ? "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)"
         : `ไม่พบสิทธิ์ใน ZHR_AUTHORIZATION สำหรับ ${auth.prs_no}`);
     target.textContent = message;
-    target.classList.add("is-auth-denied");
-    target.classList.remove("is-auth-open", "is-auth-limited");
+    target.className = "auth-status-chip is-auth-denied";
     document.body.classList.add("auth-blocked");
     showAuthBlockedOverlay(message);
     return false;
@@ -80,6 +112,7 @@ export function renderAuthStatus(el, auth) {
 
   document.body.classList.remove("auth-blocked");
   hideAuthBlockedOverlay();
+  if (auth.prs_no) storePrsNo(auth.prs_no);
   const deptText = auth.has_all_dept
     ? "ทุกแผนก"
     : `${auth.departments.length} แผนก`;
@@ -89,8 +122,7 @@ export function renderAuthStatus(el, auth) {
       ? `${auth.branches.length} สาขา`
       : "ไม่จำกัดสาขา";
   target.textContent = `สิทธิ์ ${auth.prs_no} · ${deptText} · ${branchText}`;
-  target.classList.add("is-auth-limited");
-  target.classList.remove("is-auth-open", "is-auth-denied");
+  target.className = "auth-status-chip is-auth-limited";
   return true;
 }
 
@@ -106,8 +138,7 @@ function showAuthBlockedOverlay(message) {
     <div class="auth-blocked-card">
       <strong>ไม่พบสิทธิ์เข้าใช้งาน</strong>
       <p>${message}</p>
-      <p class="auth-blocked-hint">หน้าหลักศูนย์รวม Dashboard ยังเข้าได้ตามปกติ · หน้ารายงานต้องระบุ ?c=PRS_NO</p>
-      <a class="auth-blocked-link" href="/">กลับหน้าหลัก</a>
+      <p class="auth-blocked-hint">ต้องระบุรหัสพนักงานใน URL เช่น <code>?c=PRS_NO</code></p>
     </div>
   `;
   overlay.hidden = false;

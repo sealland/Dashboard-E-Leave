@@ -33,6 +33,8 @@ class Authorization:
             "prs_no": self.prs_no or None,
             "departments": self.departments,
             "branches": self.branches,
+            # Reserved for EMC person-level allow-list (future)
+            "employees": [],
             "has_all_dept": self.has_all_dept,
             "has_all_branch": self.has_all_branch,
             "active": self.active,
@@ -49,6 +51,28 @@ class Authorization:
         }
 
 
+def _cell(row: dict[str, Any], *names: str) -> str:
+    lower_map = {str(key).lower(): value for key, value in row.items()}
+    for name in names:
+        value = row.get(name)
+        if value is None:
+            value = lower_map.get(name.lower())
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text.lower() in {"", "none", "nan"}:
+            continue
+        # Avoid float artifacts like 56070033.0 from numeric columns
+        if text.endswith(".0") and text.replace(".", "", 1).isdigit():
+            text = text[:-2]
+        return text
+    return ""
+
+
+def _is_all(value: str) -> bool:
+    return value.upper() == "ALL"
+
+
 def get_authorization(prs_no: Optional[str]) -> Authorization:
     """Load auth scope for PRS_NO. Empty prs_no = deny (ต้องระบุ ?c=)."""
     code = str(prs_no or "").strip()
@@ -57,11 +81,19 @@ def get_authorization(prs_no: Optional[str]) -> Authorization:
 
     df = execute_query(
         """
-        SELECT DEPT_CODE, BR_CODE
+        SELECT
+            LTRIM(RTRIM(CAST(DEPT_CODE AS NVARCHAR(100)))) AS DEPT_CODE,
+            LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(100)))) AS BR_CODE,
+            LTRIM(RTRIM(CAST(PRS_NO AS NVARCHAR(50)))) AS PRS_NO
         FROM dbo.ZHR_AUTHORIZATION
-        WHERE PRS_NO = :prs_no
+        WHERE LTRIM(RTRIM(CAST(PRS_NO AS NVARCHAR(50)))) = :prs_no
+           OR (
+                TRY_CAST(PRS_NO AS BIGINT) IS NOT NULL
+                AND TRY_CAST(:prs_no_num AS BIGINT) IS NOT NULL
+                AND TRY_CAST(PRS_NO AS BIGINT) = TRY_CAST(:prs_no_num AS BIGINT)
+           )
         """,
-        {"prs_no": code},
+        {"prs_no": code, "prs_no_num": code},
     )
 
     auth = Authorization(prs_no=code)
@@ -71,16 +103,16 @@ def get_authorization(prs_no: Optional[str]) -> Authorization:
     dept_seen: set[str] = set()
     branch_seen: set[str] = set()
     for row in df.to_dict(orient="records"):
-        dept = str(row.get("DEPT_CODE") or "").strip()
-        branch = str(row.get("BR_CODE") or "").strip()
+        dept = _cell(row, "DEPT_CODE", "dept_code")
+        branch = _cell(row, "BR_CODE", "br_code")
         if dept:
-            if dept.upper() == "ALL":
+            if _is_all(dept):
                 auth.has_all_dept = True
             elif dept not in dept_seen:
                 dept_seen.add(dept)
                 auth.departments.append(dept)
         if branch:
-            if branch.upper() == "ALL":
+            if _is_all(branch):
                 auth.has_all_branch = True
             elif branch not in branch_seen:
                 branch_seen.add(branch)

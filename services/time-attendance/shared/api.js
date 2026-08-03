@@ -70,6 +70,8 @@ export async function fetchEmcLaborPerTon({ year, month }) {
     year: String(year),
     month: String(month),
   });
+  const { withAuthParams } = await import("./prs-auth.js");
+  withAuthParams(params);
   const response = await fetch(`${withBasePath("/api/emc/labor-per-ton")}?${params.toString()}`);
   const payload = await response.json();
   if (!response.ok) {

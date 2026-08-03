@@ -23,8 +23,30 @@ app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
 
 
-def _nav_context(active_dashboard: str | None = None) -> dict:
-    return {"dashboards": DASHBOARDS, "active_dashboard": active_dashboard}
+def _with_auth_query(url: str | None, c: Optional[str]) -> str | None:
+    """Append ?c= / &c= to dashboard URLs so auth survives navigation without JS."""
+    from urllib.parse import quote
+
+    if not url:
+        return url
+    code = (c or "").strip()
+    if not code:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}c={quote(code, safe='')}"
+
+
+def _nav_context(active_dashboard: str | None = None, c: Optional[str] = None) -> dict:
+    code = (c or "").strip() or None
+    dashboards = [
+        {**item, "url": _with_auth_query(item.get("url"), code)}
+        for item in DASHBOARDS
+    ]
+    return {
+        "dashboards": dashboards,
+        "active_dashboard": active_dashboard,
+        "auth_c": code,
+    }
 
 
 def _auth_from_c(c: Optional[str]) -> Authorization:
@@ -42,12 +64,12 @@ def _require_auth(c: Optional[str]) -> Authorization:
     return auth
 
 
-def _dashboard_page_context(dashboard_id: str) -> dict:
+def _dashboard_page_context(dashboard_id: str, c: Optional[str] = None) -> dict:
     dashboard = get_dashboard(dashboard_id)
     if not dashboard or not dashboard.get("template"):
         raise HTTPException(status_code=404, detail="Dashboard not found")
     return {
-        **_nav_context(dashboard_id),
+        **_nav_context(dashboard_id, c=c),
         "dashboard": dashboard,
         "ui": get_dashboard_ui(dashboard_id),
         "dashboard_config": get_dashboard_config_json(dashboard_id),
@@ -56,16 +78,18 @@ def _dashboard_page_context(dashboard_id: str) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
+    c = request.query_params.get("c")
     return templates.TemplateResponse(
         request,
         "landing.html",
-        {"request": request, **_nav_context()},
+        {"request": request, **_nav_context(c=c)},
     )
 
 
 @app.get("/dashboard/{dashboard_id}", response_class=HTMLResponse)
 async def dashboard_page(request: Request, dashboard_id: str):
-    ctx = _dashboard_page_context(dashboard_id)
+    c = request.query_params.get("c")
+    ctx = _dashboard_page_context(dashboard_id, c=c)
     dashboard = ctx["dashboard"]
     if dashboard["template"] == "dashboards/requirements.html":
         return templates.TemplateResponse(

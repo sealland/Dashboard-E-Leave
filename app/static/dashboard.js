@@ -181,19 +181,41 @@ function params() {
 }
 
 function getPrsNo() {
-  return (new URLSearchParams(window.location.search).get("c") || "").trim();
+  const key = "hr_dashboard_prs_c";
+  const fromUrl = (new URLSearchParams(window.location.search).get("c") || "").trim();
+  if (fromUrl) {
+    try {
+      sessionStorage.setItem(key, fromUrl);
+    } catch (_) {}
+    return fromUrl;
+  }
+  try {
+    return (sessionStorage.getItem(key) || "").trim();
+  } catch (_) {
+    return "";
+  }
 }
 
 function renderAuthBanner(auth) {
+  const inNav = Boolean(document.querySelector(".site-nav"));
   let el = document.getElementById("auth-banner");
   if (!el) {
     el = document.createElement("div");
     el.id = "auth-banner";
-    el.className = "auth-banner";
-    const header = document.querySelector(".header");
-    if (header) header.insertAdjacentElement("afterend", el);
-    else document.querySelector(".layout")?.prepend(el);
+    const nav = document.querySelector(".site-nav");
+    if (nav) nav.appendChild(el);
+    else {
+      const header = document.querySelector(".header");
+      if (header) header.insertAdjacentElement("afterend", el);
+      else document.querySelector(".layout")?.prepend(el);
+    }
   }
+  el.hidden = false;
+
+  const baseClass = inNav || el.parentElement?.classList?.contains("site-nav")
+    ? "site-nav-auth"
+    : "auth-banner";
+
   if (!auth?.active || !auth.allowed) {
     const message =
       auth?.message ||
@@ -201,15 +223,16 @@ function renderAuthBanner(auth) {
         ? "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)"
         : `ไม่พบสิทธิ์ใน ZHR_AUTHORIZATION สำหรับ ${auth.prs_no}`);
     el.textContent = message;
-    el.className = "auth-banner auth-banner--denied";
+    el.className = `${baseClass} auth-banner--denied`;
     document.body.classList.add("auth-blocked");
     clearDashboardView(message);
     return false;
   }
+
   document.body.classList.remove("auth-blocked");
   const deptText = auth.has_all_dept ? "ทุกแผนก" : `${auth.departments.length} แผนก`;
-  el.textContent = `สิทธิ์ ${auth.prs_no} · ${deptText} (ZHR_AUTHORIZATION)`;
-  el.className = "auth-banner auth-banner--limited";
+  el.textContent = `สิทธิ์ ${auth.prs_no} · ${deptText}`;
+  el.className = `${baseClass} auth-banner--limited`;
   return true;
 }
 
@@ -886,6 +909,11 @@ function bindEvents() {
 }
 
 async function init() {
+  const prsNo = getPrsNo();
+  const brand = document.getElementById("site-nav-brand") || document.querySelector(".site-nav-brand");
+  if (brand && prsNo) {
+    brand.setAttribute("href", `/?c=${encodeURIComponent(prsNo)}`);
+  }
   bindEvents();
   if (DASHBOARD.wbdt != null) {
     $("#filter-type").value = String(DASHBOARD.wbdt);
