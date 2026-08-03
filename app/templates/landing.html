@@ -24,6 +24,7 @@
 
     <section class="landing-list" aria-label="รายการ Dashboard">
       {% for item in dashboards %}
+      {% if item.id != "emc-report" %}
       {% if item.url and not item.coming_soon %}
       <a class="landing-item card landing-item--active" href="{{ item.url }}">
       {% else %}
@@ -81,6 +82,7 @@
       {% else %}
       </article>
       {% endif %}
+      {% endif %}
       {% endfor %}
     </section>
   </div>
@@ -108,9 +110,14 @@
         const el = document.getElementById("auth-banner");
         if (!el || !auth || !auth.allowed) return;
         const deptText = auth.has_all_dept ? "ทุกแผนก" : (auth.departments || []).length + " แผนก";
+        const branchText = auth.has_all_branch
+          ? "ทุกสาขา"
+          : (auth.branches || []).length
+            ? (auth.branches || []).length + " สาขา (" + (auth.branches || []).join(", ") + ")"
+            : "ไม่จำกัดสาขา";
         el.hidden = false;
         el.className = "site-nav-auth auth-banner--limited";
-        el.textContent = "สิทธิ์ " + auth.prs_no + " · " + deptText;
+        el.textContent = "สิทธิ์ " + auth.prs_no + " · " + deptText + " · " + branchText;
       }
 
       function block(message) {

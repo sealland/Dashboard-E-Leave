@@ -35,6 +35,8 @@ const state = {
   selectedDept: null,
   lastFilteredRows: [],
   lastSummary: null,
+  detailPage: 1,
+  detailPageSize: 20,
 };
 
 const els = {
@@ -49,6 +51,7 @@ const els = {
   branchBreakdown: document.getElementById("branch-breakdown"),
   departmentTableBody: document.getElementById("department-table-body"),
   detailTableBody: document.getElementById("detail-table-body"),
+  detailPagination: document.getElementById("detail-pagination"),
   rangeLabel: document.getElementById("range-label"),
   loadingBanner: document.getElementById("loading-banner"),
   connectionStatus: document.getElementById("connection-status"),
@@ -326,6 +329,7 @@ function deptLateHref(departmentCode) {
 function setSelectedDept(departmentCode) {
   const next = departmentCode || null;
   state.selectedDept = state.selectedDept === next ? null : next;
+  state.detailPage = 1;
   renderDepartmentBars(state.lastSummary || { departments: [] });
   renderDepartmentTable(state.lastSummary || { departments: [] });
   renderDetailTable(state.lastFilteredRows || []);
@@ -336,6 +340,7 @@ function setSelectedDept(departmentCode) {
 
 function clearSelectedDept() {
   state.selectedDept = null;
+  state.detailPage = 1;
   renderDepartmentBars(state.lastSummary || { departments: [] });
   renderDepartmentTable(state.lastSummary || { departments: [] });
   renderDetailTable(state.lastFilteredRows || []);
@@ -527,13 +532,27 @@ function renderDetailTable(rows) {
           ? "ไม่มีรายการที่ต้องติดตามในแผนกที่เลือก"
           : "ไม่มีรายการที่ต้องติดตาม (ซ่อนรายการปกติแล้ว)"
       }</td></tr>`;
+    if (els.detailPagination) {
+      els.detailPagination.hidden = true;
+      els.detailPagination.innerHTML = "";
+    }
     bindDetailFilterClear();
     return;
   }
 
+  const pageSizeOptions = [10, 20, 50];
+  if (!pageSizeOptions.includes(state.detailPageSize)) {
+    state.detailPageSize = 20;
+  }
+  const totalPages = Math.max(1, Math.ceil(tracked.length / state.detailPageSize));
+  state.detailPage = Math.min(Math.max(1, state.detailPage), totalPages);
+  const start = (state.detailPage - 1) * state.detailPageSize;
+  const end = start + state.detailPageSize;
+  const pageRows = tracked.slice(start, end);
+
   els.detailTableBody.innerHTML = `
     ${filterNote ? `<tr class="detail-filter-row"><td colspan="7">${filterNote}</td></tr>` : ""}
-    ${tracked
+    ${pageRows
       .map((row) => {
         const lateCell =
           row.lateTimes > 0
@@ -552,6 +571,59 @@ function renderDetailTable(rows) {
       })
       .join("")}`;
   bindDetailFilterClear();
+  renderDetailPagination(tracked.length, start, end, totalPages);
+}
+
+function renderDetailPagination(total, start, end, totalPages) {
+  if (!els.detailPagination) return;
+  els.detailPagination.hidden = false;
+  els.detailPagination.innerHTML = `
+    <div class="report-toolbar-meta">
+      <strong>${formatNumber(total)} รายการ</strong>
+      <span>แสดง ${formatNumber(start + 1)}-${formatNumber(Math.min(end, total))} จากทั้งหมด</span>
+    </div>
+    <div class="report-pagination">
+      <label class="report-page-size">
+        <span>หน้าละ</span>
+        <select data-detail-page-size>
+          ${[10, 20, 50]
+            .map(
+              (size) =>
+                `<option value="${size}" ${size === state.detailPageSize ? "selected" : ""}>${size}</option>`,
+            )
+            .join("")}
+        </select>
+        <span>รายการ</span>
+      </label>
+      <div class="report-pagination-controls">
+        <button type="button" class="report-page-btn" data-detail-page-action="prev" ${
+          state.detailPage <= 1 ? "disabled" : ""
+        }>ก่อนหน้า</button>
+        <span class="report-page-indicator">หน้า ${formatNumber(state.detailPage)} / ${formatNumber(totalPages)}</span>
+        <button type="button" class="report-page-btn" data-detail-page-action="next" ${
+          state.detailPage >= totalPages ? "disabled" : ""
+        }>ถัดไป</button>
+      </div>
+    </div>
+  `;
+
+  const pageSizeSelect = els.detailPagination.querySelector("[data-detail-page-size]");
+  if (pageSizeSelect) {
+    pageSizeSelect.addEventListener("change", (event) => {
+      state.detailPageSize = Number(event.target.value) || 20;
+      state.detailPage = 1;
+      renderDetailTable(state.lastFilteredRows || []);
+    });
+  }
+
+  els.detailPagination.querySelectorAll("[data-detail-page-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.detailPageAction;
+      if (action === "prev") state.detailPage -= 1;
+      if (action === "next") state.detailPage += 1;
+      renderDetailTable(state.lastFilteredRows || []);
+    });
+  });
 }
 
 function bindDetailFilterClear() {
@@ -584,6 +656,7 @@ function refresh() {
     state.selectedDept = null;
   }
 
+  state.detailPage = 1;
   state.lastFilteredRows = filtered;
   state.lastSummary = summary;
 

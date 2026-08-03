@@ -2175,6 +2175,13 @@ tbody tr:hover {
   padding-bottom: 8px;
 }
 
+#detail-pagination.report-toolbar {
+  margin-top: 12px;
+  padding-top: 4px;
+  padding-bottom: 0;
+  border-top: 1px solid var(--line);
+}
+
 .report-toolbar-meta {
   display: grid;
   gap: 2px;

@@ -963,6 +963,8 @@ function renderPpProductivity(payload) {
 
 async function loadPpProductivity() {
   if (!els.ppProductivity) return;
+  const zone = els.ppProductivity.closest(".ot-zone--productivity");
+  if (zone?.hasAttribute("hidden")) return;
   if (state.ppProductivityPayload) {
     renderPpProductivity(state.ppProductivityPayload);
     return;

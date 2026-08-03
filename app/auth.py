@@ -121,23 +121,90 @@ def get_authorization(prs_no: Optional[str]) -> Authorization:
     return auth
 
 
+def _depts_for_branches(branches: list[str]) -> list[str]:
+    """Map BR_CODE → DEPT_CODE via employee master (ZHR_WEBAPP has no BR_CODE)."""
+    if not branches:
+        return []
+    params: dict[str, Any] = {}
+    keys = []
+    for index, branch in enumerate(branches):
+        key = f"auth_br_{index}"
+        keys.append(f":{key}")
+        params[key] = branch
+    df = execute_query(
+        f"""
+        SELECT DISTINCT
+            LTRIM(RTRIM(CAST(DEPT_CODE AS NVARCHAR(100)))) AS DEPT_CODE
+        FROM dbo.tbl_hr_employee_all
+        WHERE BR_CODE IN ({', '.join(keys)})
+          AND DEPT_CODE IS NOT NULL
+          AND LTRIM(RTRIM(CAST(DEPT_CODE AS NVARCHAR(100)))) <> ''
+        """,
+        params,
+    )
+    if df.empty:
+        return []
+    result: list[str] = []
+    seen: set[str] = set()
+    for row in df.to_dict(orient="records"):
+        dept = _cell(row, "DEPT_CODE", "dept_code")
+        if dept and dept not in seen:
+            seen.add(dept)
+            result.append(dept)
+    return result
+
+
+def effective_departments(auth: Optional[Authorization]) -> Optional[list[str]]:
+    """
+    Department codes allowed for E-Leave queries.
+
+    Returns:
+      None  → no DEPT_CODE filter (ทุกแผนก + ทุกสาขา)
+      []    → deny / empty scope
+      list  → DEPT_CODE IN (...)
+    """
+    if not auth or not auth.active:
+        return []
+
+    branch_depts: Optional[list[str]] = None
+    if not auth.has_all_branch and auth.branches:
+        branch_depts = _depts_for_branches(auth.branches)
+        if not branch_depts:
+            return []
+
+    if auth.has_all_dept:
+        return branch_depts  # None = all; else depts under allowed branches
+
+    if not auth.departments:
+        return []
+
+    if branch_depts is None:
+        return list(auth.departments)
+
+    allowed = set(branch_depts)
+    return [dept for dept in auth.departments if dept in allowed]
+
+
 def apply_auth_dept_sql(
     sql: str,
     params: dict[str, Any],
     auth: Optional[Authorization],
 ) -> tuple[str, dict[str, Any]]:
-    """Restrict DEPT_CODE by authorization. Blocks when missing ?c= or no rights."""
-    if not auth or not auth.active:
-        sql += " AND 1 = 0"
+    """
+    Restrict DEPT_CODE by authorization (dept + branch scope).
+
+    ZHR_WEBAPP has no BR_CODE, so branch rights are applied by limiting to
+    departments that belong to those branches in tbl_hr_employee_all.
+    """
+    depts = effective_departments(auth)
+    if depts is None:
         return sql, params
-    if auth.has_all_dept:
-        return sql, params
-    if not auth.departments:
+    if not depts:
         sql += " AND 1 = 0"
         return sql, params
 
     placeholders = []
-    for index, dept in enumerate(auth.departments):
+    for index, dept in enumerate(depts):
         key = f"auth_dept_{index}"
         placeholders.append(f":{key}")
         params[key] = dept

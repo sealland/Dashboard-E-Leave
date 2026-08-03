@@ -231,7 +231,12 @@ function renderAuthBanner(auth) {
 
   document.body.classList.remove("auth-blocked");
   const deptText = auth.has_all_dept ? "ทุกแผนก" : `${auth.departments.length} แผนก`;
-  el.textContent = `สิทธิ์ ${auth.prs_no} · ${deptText}`;
+  const branchText = auth.has_all_branch
+    ? "ทุกสาขา"
+    : auth.branches?.length
+      ? `${auth.branches.length} สาขา (${auth.branches.join(", ")})`
+      : "ไม่จำกัดสาขา";
+  el.textContent = `สิทธิ์ ${auth.prs_no} · ${deptText} · ${branchText}`;
   el.className = `${baseClass} auth-banner--limited`;
   return true;
 }
