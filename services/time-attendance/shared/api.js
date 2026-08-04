@@ -32,6 +32,22 @@ export async function fetchOvertime(filters) {
   return payload;
 }
 
+export async function fetchWeeklyOver36({ from, to }) {
+  if (!from || !to) throw new Error("from and to are required");
+  const params = new URLSearchParams({ from, to });
+  const { withAuthParams } = await import("./prs-auth.js");
+  withAuthParams(params);
+
+  const response = await fetch(
+    `${withBasePath("/api/overtime/weekly-over-36")}?${params.toString()}`,
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลดข้อมูล OT เกิน 36 ชม./สัปดาห์ได้");
+  }
+  return payload;
+}
+
 export async function fetchPpProductivity(filters) {
   const { getDateRange } = await import("./filters.js");
   const from = filters.from || getDateRange(filters).from;

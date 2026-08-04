@@ -93,6 +93,12 @@ export async function fetchAuthorization() {
   return payload;
 }
 
+export function isAllScope(auth) {
+  if (!auth?.allowed) return false;
+  if (auth.is_all_scope === true) return true;
+  return Boolean(auth.has_all_dept && auth.has_all_branch);
+}
+
 export function canAccessReport(auth, reportCode) {
   if (!reportCode) return true;
   if (!auth?.allowed) return false;

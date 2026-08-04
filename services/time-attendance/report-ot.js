@@ -5,7 +5,7 @@ import {
   normalizeBranchCode,
 } from "./shared/ot-aggregate.js";
 import { getOvertimeLabel, OT_DF_CODES } from "./shared/df-code-map.js";
-import { fetchOvertime, fetchOvertimeHeadcount, fetchPpProductivity } from "./shared/api.js";
+import { fetchOvertime, fetchOvertimeHeadcount, fetchPpProductivity, fetchWeeklyOver36 } from "./shared/api.js";
 import {
   getDefaultRange,
   parseUrlFilters,
@@ -16,8 +16,10 @@ import {
   formatLooseDate,
   formatNumber,
 } from "./shared/format.js";
-import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
+import { shouldRefreshMainAfterOtLoad, shouldStopLoadingAfterOtLoad } from "./shared/ot-load.js";
+import { preserveAuthInLinks, requireAuthorization, renderAuthStatus, isAllScope } from "./shared/prs-auth.js";
 import { mountSidebarNav } from "./shared/ta-nav.js";
+import { formatWeekPeriodLabel } from "./shared/weekly-over36.js";
 
 const els = {
   fromInput: document.getElementById("from-input"),
@@ -35,6 +37,8 @@ const els = {
   loadingBanner: document.getElementById("loading-banner"),
   connectionStatus: document.getElementById("connection-status"),
   ppProductivity: document.getElementById("pp-productivity"),
+  weeklyOver36Summary: document.getElementById("weekly-over36-summary"),
+  weeklyOver36Body: document.getElementById("weekly-over36-body"),
 };
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -57,6 +61,15 @@ const state = {
   reportPage: 1,
   reportPageSize: 10,
   ppProductivityPayload: null,
+  ppProductivityVisible: false,
+  ppProductivityLoading: false,
+  auth: null,
+  weeklyOver36Payload: null,
+  weeklyOver36Key: null,
+  weeklyOver36Loading: false,
+  weeklyOver36Page: 1,
+  weeklyOver36PageSize: 10,
+  selectedWeeklyOver36Week: null,
 };
 
 function getPpCalendarRange() {
@@ -73,6 +86,20 @@ function getPpCalendarRange() {
 function setLoading(isLoading) {
   if (els.loadingBanner) els.loadingBanner.hidden = !isLoading;
   document.body.classList.toggle("is-loading", isLoading);
+}
+
+function configureProductivityZone(auth) {
+  const zone = els.ppProductivity?.closest(".ot-zone--productivity");
+  const show = isAllScope(auth);
+  state.ppProductivityVisible = show;
+  if (zone) zone.hidden = !show;
+  return show;
+}
+
+function updateConnectionStatus() {
+  if (!els.connectionStatus) return;
+  els.connectionStatus.textContent = `เชื่อมต่อแล้ว · OT ${formatNumber(state.rows.length)} แถว · พนักงาน ${formatNumber(getHeadcount().totalEmployees)} คน`;
+  els.connectionStatus.classList.remove("is-error");
 }
 
 function setDefaults() {
@@ -963,14 +990,12 @@ function renderPpProductivity(payload) {
   `;
 }
 
-async function loadPpProductivity() {
-  if (!els.ppProductivity) return;
-  const zone = els.ppProductivity.closest(".ot-zone--productivity");
-  if (zone?.hasAttribute("hidden")) return;
-  if (state.ppProductivityPayload) {
-    renderPpProductivity(state.ppProductivityPayload);
-    return;
-  }
+async function startPpProductivityFetch() {
+  if (!els.ppProductivity || !state.ppProductivityVisible) return;
+  if (state.ppProductivityPayload || state.ppProductivityLoading) return;
+
+  state.ppProductivityLoading = true;
+  els.ppProductivity.innerHTML = '<div class="empty-state">กำลังโหลด...</div>';
   try {
     const range = getPpCalendarRange();
     const payload = await fetchPpProductivity({
@@ -983,10 +1008,244 @@ async function loadPpProductivity() {
     renderPpProductivity(payload);
   } catch (error) {
     els.ppProductivity.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  } finally {
+    state.ppProductivityLoading = false;
   }
 }
 
-function refresh() {
+async function loadPpProductivity() {
+  if (!els.ppProductivity || !state.ppProductivityVisible) return;
+  if (state.ppProductivityPayload) {
+    renderPpProductivity(state.ppProductivityPayload);
+    return;
+  }
+  await startPpProductivityFetch();
+}
+
+function renderWeeklyOver36Chart(weeks, selectedWeekKey) {
+  if (!weeks.length) {
+    return '<div class="empty-state">ไม่มีพนักงานที่ OT เกิน 36 ชม. ในช่วงที่เลือก</div>';
+  }
+
+  const maxCount = Math.max(...weeks.map((week) => week.employeesOver36), 1);
+  const clearBtn = selectedWeekKey
+    ? `<div class="weekly-over36-chart-actions"><button type="button" class="weekly-over36-clear-btn" data-weekly-over36-clear>ล้างการเลือกสัปดาห์</button></div>`
+    : "";
+
+  return `
+    ${clearBtn}
+    <div class="weekly-over36-bars">
+      ${weeks
+        .map(
+          (week) => `
+        <button
+          type="button"
+          class="weekly-over36-bar-card is-selectable${selectedWeekKey === week.weekKey ? " is-selected" : ""}"
+          data-weekly-over36-week="${escapeHtml(week.weekKey)}"
+          aria-pressed="${selectedWeekKey === week.weekKey ? "true" : "false"}"
+        >
+          <div class="weekly-over36-bar-value">${formatNumber(week.employeesOver36)}</div>
+          <div class="weekly-over36-bar-meta">
+            <span>Max ${formatNumber(week.maxHours, 1)} ชม.</span>
+            <span>Avg ${formatNumber(week.avgHours, 1)} ชม.</span>
+          </div>
+          <div class="weekly-over36-bar-track">
+            <div class="weekly-over36-bar-fill" style="height:${(week.employeesOver36 / maxCount) * 100}%"></div>
+          </div>
+          <div class="weekly-over36-bar-label">${escapeHtml(week.weekLabel || formatWeekPeriodLabel(week.weekStart, week.weekEnd))}</div>
+        </button>`,
+        )
+        .join("")}
+    </div>`;
+}
+
+function bindWeeklyOver36Chart(payload) {
+  if (!els.weeklyOver36Summary) return;
+
+  els.weeklyOver36Summary.querySelectorAll("[data-weekly-over36-week]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const weekKey = button.dataset.weeklyOver36Week;
+      state.selectedWeeklyOver36Week =
+        state.selectedWeeklyOver36Week === weekKey ? null : weekKey;
+      state.weeklyOver36Page = 1;
+      renderWeeklyOver36(payload);
+    });
+  });
+
+  const clearBtn = els.weeklyOver36Summary.querySelector("[data-weekly-over36-clear]");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      state.selectedWeeklyOver36Week = null;
+      state.weeklyOver36Page = 1;
+      renderWeeklyOver36(payload);
+    });
+  }
+}
+
+function getWeeklyOver36Rows(payload) {
+  const rows = payload?.rows || [];
+  if (!state.selectedWeeklyOver36Week) return rows;
+  return rows.filter((row) => row.weekKey === state.selectedWeeklyOver36Week);
+}
+
+function describeWeeklyOver36Filter(payload) {
+  if (!state.selectedWeeklyOver36Week) return "";
+  const week = (payload?.weeks || []).find((item) => item.weekKey === state.selectedWeeklyOver36Week);
+  if (week?.weekLabel) return week.weekLabel;
+  if (week) return formatWeekPeriodLabel(week.weekStart, week.weekEnd);
+  const row = (payload?.rows || []).find((item) => item.weekKey === state.selectedWeeklyOver36Week);
+  if (row) return formatWeekPeriodLabel(row.weekStart, row.weekEnd);
+  return state.selectedWeeklyOver36Week;
+}
+
+function bindWeeklyOver36Pagination(payload, totalPages) {
+  const pageSizeSelect = els.weeklyOver36Body.querySelector("[data-weekly-over36-page-size]");
+  if (pageSizeSelect) {
+    pageSizeSelect.addEventListener("change", (event) => {
+      state.weeklyOver36PageSize = Number(event.target.value) || 10;
+      state.weeklyOver36Page = 1;
+      renderWeeklyOver36(payload);
+    });
+  }
+
+  els.weeklyOver36Body.querySelectorAll("[data-weekly-over36-page-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.weeklyOver36PageAction;
+      if (action === "prev" && state.weeklyOver36Page > 1) {
+        state.weeklyOver36Page -= 1;
+      } else if (action === "next" && state.weeklyOver36Page < totalPages) {
+        state.weeklyOver36Page += 1;
+      } else {
+        return;
+      }
+      renderWeeklyOver36(payload);
+    });
+  });
+}
+
+function renderWeeklyOver36(payload) {
+  if (!els.weeklyOver36Summary || !els.weeklyOver36Body) return;
+
+  const weeks = payload?.weeks || [];
+  const rows = getWeeklyOver36Rows(payload);
+  const filterText = describeWeeklyOver36Filter(payload);
+
+  els.weeklyOver36Summary.innerHTML = renderWeeklyOver36Chart(weeks, state.selectedWeeklyOver36Week);
+  bindWeeklyOver36Chart(payload);
+
+  if (!rows.length) {
+    els.weeklyOver36Body.innerHTML = filterText
+      ? `<div class="empty-state">ไม่มีรายการ OT เกิน 36 ชม. ในช่วง ${escapeHtml(filterText)}</div>`
+      : '<div class="empty-state">ไม่มีพนักงานที่ OT เกิน 36 ชม. ในช่วงที่เลือก</div>';
+    return;
+  }
+
+  const pageSizeOptions = [10, 20, 50];
+  if (!pageSizeOptions.includes(state.weeklyOver36PageSize)) {
+    state.weeklyOver36PageSize = 10;
+  }
+  const totalPages = Math.max(1, Math.ceil(rows.length / state.weeklyOver36PageSize));
+  state.weeklyOver36Page = Math.min(Math.max(1, state.weeklyOver36Page), totalPages);
+  const start = (state.weeklyOver36Page - 1) * state.weeklyOver36PageSize;
+  const end = start + state.weeklyOver36PageSize;
+  const pageRows = rows.slice(start, end);
+
+  els.weeklyOver36Body.innerHTML = `
+    <div class="report-toolbar">
+      <div class="report-toolbar-meta">
+        <strong>${formatNumber(rows.length)} รายการ</strong>
+        <span>แสดง ${formatNumber(start + 1)}-${formatNumber(Math.min(end, rows.length))}</span>
+        ${filterText ? `<span class="report-filter-chip">กรอง: ${escapeHtml(filterText)}</span>` : ""}
+      </div>
+      <div class="report-pagination">
+        <label class="report-page-size">
+          <span>หน้าละ</span>
+          <select data-weekly-over36-page-size>
+            ${pageSizeOptions
+              .map(
+                (size) =>
+                  `<option value="${size}" ${size === state.weeklyOver36PageSize ? "selected" : ""}>${size}</option>`,
+              )
+              .join("")}
+          </select>
+          <span>รายการ</span>
+        </label>
+        <div class="report-pagination-controls">
+          <button type="button" class="report-page-btn" data-weekly-over36-page-action="prev" ${state.weeklyOver36Page <= 1 ? "disabled" : ""}>ก่อนหน้า</button>
+          <span class="report-page-indicator">หน้า ${formatNumber(state.weeklyOver36Page)} / ${formatNumber(totalPages)}</span>
+          <button type="button" class="report-page-btn" data-weekly-over36-page-action="next" ${state.weeklyOver36Page >= totalPages ? "disabled" : ""}>ถัดไป</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สัปดาห์</th>
+            <th>รหัส</th>
+            <th>ชื่อพนักงาน</th>
+            <th>แผนก</th>
+            <th>สาขา</th>
+            <th>วันทำ OT</th>
+            <th>รวม OT</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pageRows
+            .map(
+              (row) => `
+            <tr>
+              <td>${escapeHtml(formatWeekPeriodLabel(row.weekStart, row.weekEnd))}</td>
+              <td>${escapeHtml(row.prsNo || row.empKey)}</td>
+              <td><strong>${escapeHtml(row.employeeName)}</strong></td>
+              <td>${escapeHtml(row.departmentName || row.departmentCode || "-")}</td>
+              <td>${escapeHtml(row.branchName || row.branchCode || "-")}</td>
+              <td>${formatNumber(row.dayCount)}</td>
+              <td><strong>${formatNumber(row.totalHours, 2)}</strong></td>
+            </tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>`;
+
+  bindWeeklyOver36Pagination(payload, totalPages);
+}
+
+async function startWeeklyOver36Fetch() {
+  if (!els.weeklyOver36Summary || !els.weeklyOver36Body) return;
+
+  const key = `${state.filters.from}__${state.filters.to}`;
+  if (state.weeklyOver36Key === key && state.weeklyOver36Payload) {
+    renderWeeklyOver36(state.weeklyOver36Payload);
+    return;
+  }
+  if (state.weeklyOver36Loading) return;
+
+  state.weeklyOver36Loading = true;
+  els.weeklyOver36Summary.innerHTML = '<div class="empty-state">กำลังโหลด...</div>';
+  els.weeklyOver36Body.innerHTML = '<div class="empty-state">กำลังโหลด...</div>';
+
+  try {
+    const payload = await fetchWeeklyOver36({
+      from: state.filters.from,
+      to: state.filters.to,
+    });
+    state.weeklyOver36Payload = payload;
+    state.weeklyOver36Key = key;
+    state.weeklyOver36Page = 1;
+    state.selectedWeeklyOver36Week = null;
+    renderWeeklyOver36(payload);
+  } catch (error) {
+    const html = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    els.weeklyOver36Summary.innerHTML = html;
+    els.weeklyOver36Body.innerHTML = html;
+  } finally {
+    state.weeklyOver36Loading = false;
+  }
+}
+
+function refreshMain() {
   const headcount = getHeadcount();
   const otRows = getFilteredOtRows();
   const summary = buildOvertimeSummary(otRows, headcount);
@@ -1006,7 +1265,12 @@ function refresh() {
   updateRangeLabel(branchGroups, deptGroups);
   renderOtRateCompare(otRows);
   syncUrl();
+}
+
+function refresh() {
+  refreshMain();
   loadPpProductivity();
+  startWeeklyOver36Fetch();
 }
 
 async function loadData() {
@@ -1021,47 +1285,67 @@ async function loadData() {
   }
 
   setLoading(true);
+  startPpProductivityFetch();
+  startWeeklyOver36Fetch();
+
+  let firstError = null;
+
+  const otTask = needOt
+    ? fetchOvertime({
+        from: state.filters.from,
+        to: state.filters.to,
+        df_code: state.filters.df_code,
+      })
+        .then((payload) => {
+          state.rows = payload.rows;
+          state.fetchedKey = key;
+          populateFilters();
+          if (payload.meta?.auth) {
+            state.auth = payload.meta.auth;
+            if (configureProductivityZone(payload.meta.auth)) {
+              startPpProductivityFetch();
+            }
+            renderAuthStatus(els.connectionStatus, payload.meta.auth);
+          }
+          if (shouldRefreshMainAfterOtLoad({ needOt, needHeadcount })) {
+            refreshMain();
+            updateConnectionStatus();
+          }
+          if (shouldStopLoadingAfterOtLoad({ needOt, needHeadcount })) {
+            setLoading(false);
+          }
+        })
+        .catch((error) => {
+          firstError = firstError || error;
+        })
+    : null;
+
+  const headcountTask = needHeadcount
+    ? fetchOvertimeHeadcount({ to: state.filters.to })
+        .then((payload) => {
+          state.headcountRaw = payload;
+          state.headcountKey = headcountKey;
+          refreshMain();
+          updateConnectionStatus();
+          if (!needOt) setLoading(false);
+        })
+        .catch((error) => {
+          firstError = firstError || error;
+        })
+    : null;
+
   try {
-    const tasks = [];
-    if (needOt) {
-      tasks.push(
-        fetchOvertime({
-          from: state.filters.from,
-          to: state.filters.to,
-          df_code: state.filters.df_code,
-        }).then((payload) => ({ type: "ot", payload })),
-      );
-    }
-    if (needHeadcount) {
-      tasks.push(
-        fetchOvertimeHeadcount({ to: state.filters.to }).then((payload) => ({
-          type: "headcount",
-          payload,
-        })),
-      );
+    await Promise.all([otTask, headcountTask].filter(Boolean));
+
+    if (firstError) {
+      throw firstError;
     }
 
-    const results = await Promise.all(tasks);
-    for (const item of results) {
-      if (item.type === "ot") {
-        state.rows = item.payload.rows;
-        state.fetchedKey = key;
-        populateFilters();
-        if (item.payload.meta?.auth) {
-          renderAuthStatus(els.connectionStatus, item.payload.meta.auth);
-        }
-      }
-      if (item.type === "headcount") {
-        state.headcountRaw = item.payload;
-        state.headcountKey = headcountKey;
-      }
+    if (!needOt) {
+      refreshMain();
+      updateConnectionStatus();
     }
-
-    if (els.connectionStatus) {
-      els.connectionStatus.textContent = `เชื่อมต่อแล้ว · OT ${formatNumber(state.rows.length)} แถว · พนักงาน ${formatNumber(getHeadcount().totalEmployees)} คน`;
-      els.connectionStatus.classList.remove("is-error");
-    }
-    refresh();
+    loadPpProductivity();
   } catch (error) {
     const message = `<tr><td colspan="4">${escapeHtml(error.message)}</td></tr>`;
     els.branchSummaryBody.innerHTML = message;
@@ -1085,6 +1369,10 @@ async function loadData() {
 function bindEvents() {
   const onRangeOrTypeChange = () => {
     state.reportPage = 1;
+    state.weeklyOver36Page = 1;
+    state.weeklyOver36Payload = null;
+    state.weeklyOver36Key = null;
+    state.selectedWeeklyOver36Week = null;
     state.selectedAvgBranch = null;
     state.selectedAvgDept = null;
     state.filters.from = els.fromInput.value;
@@ -1123,5 +1411,7 @@ mountSidebarNav("ot");
 preserveAuthInLinks();
 requireAuthorization("time-attendance").then((auth) => {
   if (!auth) return;
+  state.auth = auth;
+  configureProductivityZone(auth);
   loadData();
 });

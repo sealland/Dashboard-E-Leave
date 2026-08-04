@@ -3199,12 +3199,6 @@ tbody tr:hover {
   justify-items: end;
 }
 
-.turnover-source-note {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
 .turnover-kpi {
   font-size: 0.96rem;
   color: var(--text);
@@ -3883,4 +3877,109 @@ tbody tr:hover {
 .ot-page .pp-table th,
 .ot-page .pp-table td {
   padding: 8px 10px;
+}
+
+/* —— OT over 36 hours per week —— */
+.weekly-over36-summary,
+.weekly-over36-body {
+  margin-top: 16px;
+}
+
+.weekly-over36-bars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.weekly-over36-chart-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.weekly-over36-clear-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.weekly-over36-clear-btn:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.weekly-over36-bar-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 180px;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.weekly-over36-bar-card.is-selectable {
+  cursor: pointer;
+}
+
+.weekly-over36-bar-card.is-selectable:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.weekly-over36-bar-card.is-selected {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.weekly-over36-bar-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.weekly-over36-bar-meta {
+  display: grid;
+  gap: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+.weekly-over36-bar-track {
+  height: 90px;
+  display: flex;
+  align-items: end;
+}
+
+.weekly-over36-bar-fill {
+  width: 100%;
+  min-height: 8px;
+  border-radius: 10px 10px 4px 4px;
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+}
+
+.weekly-over36-bar-label {
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.ot-page .panel-weekly-over36 .table-wrap table td:last-child,
+.ot-page .panel-weekly-over36 .table-wrap table th:last-child {
+  text-align: right;
 }

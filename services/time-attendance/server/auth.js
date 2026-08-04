@@ -81,6 +81,7 @@ export async function getAuthorization(prsNo) {
       has_all_dept: false,
       has_all_branch: false,
       has_all_reports: false,
+      is_all_scope: false,
       active: false,
       allowed: false,
       message: "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
@@ -135,6 +136,8 @@ export async function getAuthorization(prsNo) {
     ? await loadReportCodes(code)
     : { hasAllReports: false, reports: [] };
 
+  const isAllScope = allowed && hasAllDept && hasAllBranch;
+
   return {
     prs_no: code,
     departments,
@@ -144,6 +147,7 @@ export async function getAuthorization(prsNo) {
     has_all_dept: hasAllDept,
     has_all_branch: hasAllBranch,
     has_all_reports: hasAllReports,
+    is_all_scope: isAllScope,
     active: true,
     allowed,
     message: allowed ? null : `ไม่พบสิทธิ์ใน ZHR_AUTHORIZATION สำหรับ ${code}`,
@@ -193,6 +197,53 @@ export function buildAuthSql(request, auth, { alias = "", includeBranch = true }
         return `@${name}`;
       });
       parts.push(`${prefix}BR_CODE IN (${keys.join(", ")})`);
+    }
+  }
+
+  return parts.length ? ` AND ${parts.join(" AND ")}` : "";
+}
+
+/**
+ * Restrict headcount query to authorized DEPT/BR from latest checkin location.
+ * Uses `loc` alias from latest vw_employee_checkin join.
+ */
+export function buildHeadcountAuthSql(request, auth, { alias = "loc" } = {}) {
+  if (!auth?.active) {
+    return " AND 1 = 0";
+  }
+
+  const prefix = alias ? `${alias}.` : "";
+  const parts = [];
+
+  if (auth.has_all_dept) {
+    // no dept restriction
+  } else if (!auth.departments.length) {
+    parts.push("1 = 0");
+  } else {
+    const keys = auth.departments.map((_, index) => {
+      const name = `hcDept${index}`;
+      request.input(name, sql.NVarChar(200), auth.departments[index]);
+      return `@${name}`;
+    });
+    parts.push(`${prefix}DEPT_CODE IN (${keys.join(", ")})`);
+  }
+
+  if (auth.has_all_branch) {
+    // no branch restriction
+  } else if (auth.branches.length) {
+    const keys = auth.branches.map((_, index) => {
+      const name = `hcBr${index}`;
+      request.input(name, sql.NVarChar(50), auth.branches[index]);
+      return `@${name}`;
+    });
+    const branchList = keys.join(", ");
+    const hasMmt = auth.branches.some((code) => String(code).trim().toUpperCase() === "MMT");
+    if (hasMmt) {
+      parts.push(`(
+        LTRIM(RTRIM(CAST(${prefix}BR_CODE AS NVARCHAR(50)))) IN (${branchList}, N'998', N'999')
+      )`);
+    } else {
+      parts.push(`LTRIM(RTRIM(CAST(${prefix}BR_CODE AS NVARCHAR(50)))) IN (${branchList})`);
     }
   }
 

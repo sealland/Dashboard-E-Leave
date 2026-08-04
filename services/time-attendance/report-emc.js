@@ -1011,7 +1011,6 @@ function renderTurnover(payload) {
           <div class="turnover-kpi turnover-kpi--previous">${escapeHtml(String(previous.year + 543))} Turnover <strong>${formatPct(previous.averageRate)}</strong> / Month</div>
         </div>
       </div>
-      <p class="turnover-source-note">แหล่งข้อมูล: ${escapeHtml(payload?.meta?.source || "-")} · คนอยู่ ณ สิ้นเดือน / คนออกจาก PRI_RES_D</p>
       <div class="turnover-chart-wrap">
         <svg viewBox="0 0 ${width} ${height}" class="turnover-chart" role="img" aria-label="Turnover Rate เปรียบเทียบสองปีรายเดือน">
           ${grid}

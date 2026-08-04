@@ -31,6 +31,7 @@ const config = {
   options: {
     encrypt: envFlag("DB_ENCRYPT", true),
     trustServerCertificate: envFlag("DB_TRUST_SERVER_CERTIFICATE", true),
+    requestTimeout: Number(process.env.DB_REQUEST_TIMEOUT || 120000),
   },
   pool: {
     max: 10,
