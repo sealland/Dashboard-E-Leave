@@ -11,6 +11,7 @@ import {
 } from "./shared/filters.js";
 import { escapeHtml, formatDisplayDate, formatNumber, formatShiftHours } from "./shared/format.js";
 import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
+import { mountSidebarNav } from "./shared/ta-nav.js";
 
 const els = {
   fromInput: document.getElementById("from-input"),
@@ -148,6 +149,7 @@ function groupRecordsByPerson(eligible, records) {
     if (!map.has(row.empKey)) {
       map.set(row.empKey, {
         empKey: row.empKey,
+        prsNo: row.prsNo || row.empKey,
         name: row.name,
         departmentCode: row.departmentCode,
         departmentName: row.departmentName,
@@ -225,7 +227,7 @@ function renderReport(lateSummary) {
           <button class="report-person-head" type="button" aria-expanded="false" data-target="person-${index}">
             <div>
               <strong>${escapeHtml(person.name)}</strong>
-              <span class="report-meta">${escapeHtml(person.empKey)} · ${escapeHtml(person.departmentCode)} · ${escapeHtml(person.branchName)}</span>
+              <span class="report-meta">${escapeHtml(person.prsNo || person.empKey)} · ${escapeHtml(person.departmentCode)} · ${escapeHtml(person.branchName)}</span>
             </div>
             <div class="report-person-stats">
               <span>${formatNumber(person.times)} ครั้ง</span>
@@ -341,6 +343,7 @@ function bindEvents() {
 
 bindEvents();
 setDefaults();
+mountSidebarNav("late");
 preserveAuthInLinks();
 requireAuthorization("time-attendance").then((auth) => {
   if (!auth) return;

@@ -294,24 +294,84 @@ router.get("/emc/turnover", async (req, res) => {
 
     const pool = await getPool();
     const request = pool.request();
+    const prevYear = baseYear - 1;
     request.input("year", sql.Int, baseYear);
-    request.input("prevYear", sql.Int, baseYear - 1);
+    request.input("prevYear", sql.Int, prevYear);
+    request.input("rangeFrom", sql.Date, `${prevYear}-01-01`);
+    request.input("rangeToExclusive", sql.Date, `${baseYear + 1}-01-01`);
 
+    // Headcount @ month-end + leavers by PRI_RES_D from ZHR_EMPLOYEE only.
+    // Note: prior years may look flat if historical leavers were purged from the master.
     const result = await request.query(`
+      ;WITH months AS (
+        SELECT DATEFROMPARTS(@prevYear, 1, 1) AS month_start
+        UNION ALL
+        SELECT DATEADD(MONTH, 1, month_start)
+        FROM months
+        WHERE month_start < DATEFROMPARTS(@year, 12, 1)
+      ),
+      month_ends AS (
+        SELECT
+          EOMONTH(month_start) AS month_end,
+          YEAR(month_start) AS turn_year,
+          MONTH(month_start) AS turn_month
+        FROM months
+      ),
+      headcounts AS (
+        SELECT
+          m.turn_year,
+          m.turn_month,
+          COUNT_BIG(*) AS emp_all
+        FROM month_ends m
+        INNER JOIN dbo.ZHR_EMPLOYEE e
+          ON e.emp_code IS NOT NULL
+         AND LTRIM(RTRIM(e.emp_code)) <> ''
+         AND e.pri_start_d IS NOT NULL
+         AND e.pri_start_d <= m.month_end
+         AND (e.PRI_RES_D IS NULL OR e.PRI_RES_D > m.month_end)
+        GROUP BY m.turn_year, m.turn_month
+      ),
+      exits AS (
+        SELECT
+          YEAR(e.PRI_RES_D) AS turn_year,
+          MONTH(e.PRI_RES_D) AS turn_month,
+          COUNT_BIG(*) AS turnover
+        FROM dbo.ZHR_EMPLOYEE e
+        WHERE e.emp_code IS NOT NULL
+          AND LTRIM(RTRIM(e.emp_code)) <> ''
+          AND e.PRI_RES_D IS NOT NULL
+          AND e.PRI_RES_D >= @rangeFrom
+          AND e.PRI_RES_D < @rangeToExclusive
+        GROUP BY YEAR(e.PRI_RES_D), MONTH(e.PRI_RES_D)
+      )
       SELECT
-        CAST(TURN_YEAR AS int) AS turn_year,
-        CAST(TURN_MONTH AS int) AS turn_month,
-        CAST(EMP_ALL AS float) AS emp_all,
-        CAST(TURNOVER AS float) AS turnover
-      FROM dbo.ZHR_TURNOVER
-      WHERE TURN_YEAR IN (@year, @prevYear)
-      ORDER BY TURN_YEAR ASC, TURN_MONTH ASC
+        m.turn_year,
+        m.turn_month,
+        CAST(ISNULL(h.emp_all, 0) AS float) AS emp_all,
+        CAST(ISNULL(x.turnover, 0) AS float) AS turnover
+      FROM month_ends m
+      LEFT JOIN headcounts h
+        ON h.turn_year = m.turn_year AND h.turn_month = m.turn_month
+      LEFT JOIN exits x
+        ON x.turn_year = m.turn_year AND x.turn_month = m.turn_month
+      ORDER BY m.turn_year ASC, m.turn_month ASC
+      OPTION (MAXRECURSION 24)
     `);
 
     const byYearMonth = new Map();
     for (const row of result.recordset) {
-      byYearMonth.set(`${row.turn_year}-${row.turn_month}`, row);
+      const turnYear = Number(row.turn_year);
+      const turnMonth = Number(row.turn_month);
+      if (!Number.isInteger(turnYear) || !Number.isInteger(turnMonth)) continue;
+      byYearMonth.set(`${turnYear}-${turnMonth}`, {
+        emp_all: Number(row.emp_all) || 0,
+        turnover: Number(row.turnover) || 0,
+      });
     }
+
+    const now = new Date();
+    const calendarYear = now.getFullYear();
+    const calendarMonth = now.getMonth() + 1;
 
     function buildSeries(year) {
       const months = Array.from({ length: 12 }, (_, index) => {
@@ -319,7 +379,10 @@ router.get("/emc/turnover", async (req, res) => {
         const row = byYearMonth.get(`${year}-${month}`);
         const employees = Number(row?.emp_all) || 0;
         const turnover = Number(row?.turnover) || 0;
-        const rate = employees > 0 ? (turnover / employees) * 100 : null;
+        const isFuture =
+          year > calendarYear || (year === calendarYear && month > calendarMonth);
+        const rate =
+          isFuture || employees <= 0 ? null : (turnover / employees) * 100;
         return {
           month,
           employees,
@@ -338,11 +401,19 @@ router.get("/emc/turnover", async (req, res) => {
       };
     }
 
+    const current = buildSeries(baseYear);
+    const previous = buildSeries(prevYear);
+
+    res.setHeader("Cache-Control", "no-store");
     res.json({
-      current: buildSeries(baseYear),
-      previous: buildSeries(baseYear - 1),
+      current,
+      previous,
       meta: {
-        source: "ZHR_TURNOVER",
+        source: "ZHR_EMPLOYEE",
+        filter: "calendar_year (pri_start_d / PRI_RES_D month-end; no EXCLUDED_BUS)",
+        previousYear: prevYear,
+        previousAverageRate: previous.averageRate,
+        previousMonthRates: previous.months.map((m) => m.rate),
         auth,
       },
     });

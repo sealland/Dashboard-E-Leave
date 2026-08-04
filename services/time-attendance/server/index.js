@@ -97,6 +97,14 @@ router.get("/report-emc.html", (_req, res) => {
   sendHtml(res, "report-emc.html");
 });
 
+router.get("/report-checkin.html", (_req, res) => {
+  sendHtml(res, "report-checkin.html");
+});
+
+router.get("/report-ot-pdf.html", (_req, res) => {
+  sendHtml(res, "report-ot-pdf.html");
+});
+
 router.use(express.static(rootDir, { index: false }));
 
 router.get("*", (_req, res) => {

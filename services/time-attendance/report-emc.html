@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="th">
   <head>
     <meta charset="UTF-8" />
@@ -19,12 +19,7 @@
           <div class="brand-mark"><span></span><span></span><span></span></div>
           <p class="brand-title">HR</p>
         </div>
-        <nav class="sidebar-nav">
-          <a class="nav-item" href="/">ศูนย์ Dashboard</a>
-          <a class="nav-item" href="./">Time Attendance</a>
-          <a class="nav-item" href="./index.html">รายงานสถิติการลางาน</a>
-          <a class="nav-item" href="./report-ot.html">รายงานค่าล่วงเวลาการทำงาน</a>
-        </nav>
+        <nav class="sidebar-nav" id="sidebar-nav"></nav>
         <div class="sidebar-user">
           <div class="avatar">ผ</div>
           <div>
@@ -76,7 +71,7 @@
           <div class="panel-head">
             <div>
               <h2>Turnover Rate</h2>
-              <p>ข้อมูลจาก ZHR_TURNOVER เปรียบเทียบ 2 ปีปฏิทิน (ไม่ผูกกับตัวกรองด้านบน)</p>
+              <p>ข้อมูลจาก ZHR_EMPLOYEE ณ สิ้นเดือน · เปรียบเทียบ 2 ปีปฏิทิน (ไม่ผูกกับตัวกรองด้านบน)</p>
             </div>
           </div>
           <div id="turnover-body" class="turnover-wrap">
@@ -125,6 +120,6 @@
       </main>
     </div>
 
-    <script type="module" src="./report-emc.js"></script>
+    <script type="module" src="./report-emc.js?v=5"></script>
   </body>
 </html>

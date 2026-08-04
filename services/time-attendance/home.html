@@ -20,12 +20,7 @@
           <p class="brand-title">HR</p>
         </div>
 
-        <nav class="sidebar-nav">
-          <a class="nav-item" href="/">ศูนย์ Dashboard</a>
-          <a class="nav-item active" href="./">Time Attendance</a>
-          <a class="nav-item" href="./index.html">รายงานสถิติการลางาน</a>
-          <a class="nav-item" href="./report-ot.html">รายงานค่าล่วงเวลาการทำงาน</a>
-        </nav>
+        <nav class="sidebar-nav" id="sidebar-nav"></nav>
 
         <div class="sidebar-user">
           <div class="avatar">ผ</div>
@@ -60,11 +55,27 @@
             <p>สรุปชั่วโมง OT ตามสาขา/แผนก พร้อมกราฟคน · ปริมาณเหล็ก · โอที</p>
             <span class="menu-card-action">เปิดรายงาน</span>
           </a>
+
+          <a class="menu-card" href="./report-checkin.html">
+            <p class="menu-card-label">รายงาน PDF</p>
+            <h2>รายงานสแกนเข้างาน</h2>
+            <p>ดูรายงานสแกนเข้างานตามงวดเดือนและสาขา</p>
+            <span class="menu-card-action">เปิดรายงาน</span>
+          </a>
+
+          <a class="menu-card" href="./report-ot-pdf.html">
+            <p class="menu-card-label">รายงาน PDF</p>
+            <h2>รายงาน OT พนักงาน (PDF)</h2>
+            <p>ดูรายงาน OT พนักงานตามงวดเดือนและสาขา</p>
+            <span class="menu-card-action">เปิดรายงาน</span>
+          </a>
         </section>
       </main>
     </div>
     <script type="module">
       import { preserveAuthInLinks, requireAuthorization } from "./shared/prs-auth.js";
+      import { mountSidebarNav } from "./shared/ta-nav.js";
+      mountSidebarNav("home");
       preserveAuthInLinks();
       requireAuthorization("time-attendance");
     </script>

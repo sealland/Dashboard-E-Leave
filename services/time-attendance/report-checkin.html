@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>รายงานสแกนเข้างาน — Time Attendance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark"><span></span><span></span><span></span></div>
+          <p class="brand-title">HR</p>
+        </div>
+        <nav class="sidebar-nav" id="sidebar-nav"></nav>
+        <div class="sidebar-user">
+          <div class="avatar">ผ</div>
+          <div>
+            <strong>ผู้บริหาร</strong>
+            <span>Executive</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="page-head">
+          <div>
+            <p class="eyebrow">Time Attendance</p>
+            <h1>รายงานสแกน <span>เข้างาน</span></h1>
+            <p class="page-subtitle">เลือกงวดเดือนและสาขาเพื่อดูรายงาน PDF</p>
+          </div>
+        </header>
+
+        <section class="panel legacy-report-panel">
+          <div class="legacy-controls">
+            <label>
+              <span>Period</span>
+              <input id="period" type="month" />
+            </label>
+            <label>
+              <span>สาขา</span>
+              <select id="br_code">
+                <option value="ALL" selected>ALL</option>
+              </select>
+              <small id="br_status" class="legacy-field-hint" hidden></small>
+            </label>
+            <div class="legacy-actions">
+              <button id="viewBtn" type="button" class="btn btn-primary">ดูรายงาน</button>
+              <button id="openBtn" type="button" class="btn btn-ghost">เปิดแท็บใหม่</button>
+              <button id="copyBtn" type="button" class="btn btn-ghost">คัดลอกลิงก์</button>
+            </div>
+          </div>
+          <div class="legacy-preview">
+            <div class="loading-overlay" id="loadingOverlay" hidden>
+              <p>กำลังโหลดรายงาน...</p>
+            </div>
+            <iframe id="reportFrame" title="รายงานสแกนเข้างาน"></iframe>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./report-checkin.js"></script>
+  </body>
+</html>

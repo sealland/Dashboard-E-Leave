@@ -63,6 +63,7 @@ export function makeDailyBase(row) {
     isoDate,
     monthKey: isoDate.slice(0, 7),
     empKey: String(row.EMP_KEY ?? ""),
+    prsNo: String(row.PRS_NO ?? row.EMP_KEY ?? "").trim(),
     name: `${row.EMP_NAME || ""} ${row.EMP_SURNME || ""}`.trim(),
     departmentCode: row.DEPT_CODE || "ไม่ระบุ",
     departmentName: row.DEPT_THAIDESC || row.DEPT_CODE || "ไม่ระบุแผนก",
@@ -284,6 +285,7 @@ export function runSelfCheck() {
   const rows = [
     {
       EMP_KEY: "12534",
+      PRS_NO: "58040012",
       TMR_DATE: "8/2/2026",
       EMP_NAME: "อำนาจ",
       EMP_SURNME: "ใจชื้น",
@@ -299,6 +301,7 @@ export function runSelfCheck() {
     },
     {
       EMP_KEY: "2",
+      PRS_NO: "52060005",
       TMR_DATE: "19/6/2026",
       EMP_NAME: "B",
       EMP_SURNME: "",
@@ -312,6 +315,7 @@ export function runSelfCheck() {
     },
     {
       EMP_KEY: "3",
+      PRS_NO: "57110047",
       TMR_DATE: "19/6/2026",
       EMP_NAME: "C",
       EMP_SURNME: "",

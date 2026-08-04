@@ -69,6 +69,38 @@ export function buildHeadcountFromAttendance(rows) {
   };
 }
 
+/** Filter a full-scope headcount payload by UI branch/department selects. */
+export function filterHeadcount(headcount, { branch = "all", department = "all" } = {}) {
+  if (!headcount) {
+    return { totalEmployees: 0, branches: [], departments: [] };
+  }
+
+  let branches = [...(headcount.branches || [])];
+  let departments = [...(headcount.departments || [])];
+
+  if (branch && branch !== "all") {
+    const branchCode = normalizeBranchCode(branch);
+    branches = branches.filter((item) => item.code === branchCode);
+    departments = departments.filter((item) => item.branchCode === branchCode);
+  }
+  if (department && department !== "all") {
+    departments = departments.filter((item) => item.code === department);
+  }
+
+  let totalEmployees = 0;
+  if (department && department !== "all") {
+    totalEmployees = departments.reduce((sum, item) => sum + (item.totalEmployees || 0), 0);
+  } else if (branch && branch !== "all") {
+    totalEmployees =
+      branches[0]?.totalEmployees ??
+      departments.reduce((sum, item) => sum + (item.totalEmployees || 0), 0);
+  } else {
+    totalEmployees = Number(headcount.totalEmployees) || 0;
+  }
+
+  return { totalEmployees, branches, departments };
+}
+
 function aggregateOtByGroup(rows, groupBy) {
   const groups = new Map();
 

@@ -23,30 +23,6 @@
     return `${url}${sep}c=${encodeURIComponent(c)}`;
   }
 
-  const els = {
-    form: document.getElementById("acl-form"),
-    prsInput: document.getElementById("prs-input"),
-    prsList: document.getElementById("prs-list"),
-    reportSelect: document.getElementById("report-select"),
-    formStatus: document.getElementById("form-status"),
-    filterPrs: document.getElementById("filter-prs"),
-    list: document.getElementById("acl-list"),
-    listSummary: document.getElementById("list-summary"),
-    statRows: document.getElementById("stat-rows"),
-    statPeople: document.getElementById("stat-people"),
-    brand: document.getElementById("site-nav-brand"),
-    backHome: document.getElementById("back-home"),
-  };
-
-  let rows = [];
-
-  function setStatus(message, ok) {
-    if (!els.formStatus) return;
-    els.formStatus.hidden = !message;
-    els.formStatus.textContent = message || "";
-    els.formStatus.className = `maintain-status ${ok ? "is-ok" : "is-err"}`;
-  }
-
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -64,191 +40,350 @@
     return payload.error || "เกิดข้อผิดพลาด";
   }
 
-  function codeClass(reportCode) {
-    if (reportCode === "ALL") return "is-all";
-    if (reportCode === "emc-report") return "is-admin";
-    return "";
+  function setStatus(el, message, ok) {
+    if (!el) return;
+    el.hidden = !message;
+    el.textContent = message || "";
+    el.className = `maintain-status ${ok ? "is-ok" : "is-err"}`;
   }
 
-  function updateStats(sourceRows) {
-    const people = new Set(sourceRows.map((row) => row.prs_no));
-    if (els.statRows) els.statRows.textContent = String(sourceRows.length);
-    if (els.statPeople) els.statPeople.textContent = String(people.size);
+  const els = {
+    brand: document.getElementById("site-nav-brand"),
+    backHome: document.getElementById("back-home"),
+    statRows: document.getElementById("stat-rows"),
+    statPeople: document.getElementById("stat-people"),
+    tabs: document.querySelectorAll(".maintain-tab"),
+    tabScope: document.getElementById("tab-scope"),
+    tabReports: document.getElementById("tab-reports"),
+    // reports
+    form: document.getElementById("acl-form"),
+    prsInput: document.getElementById("prs-input"),
+    prsList: document.getElementById("prs-list"),
+    reportSelect: document.getElementById("report-select"),
+    formStatus: document.getElementById("form-status"),
+    filterPrs: document.getElementById("filter-prs"),
+    list: document.getElementById("acl-list"),
+    listSummary: document.getElementById("list-summary"),
+    // scope
+    scopeForm: document.getElementById("scope-form"),
+    scopePrs: document.getElementById("scope-prs"),
+    scopePrsList: document.getElementById("scope-prs-list"),
+    scopeDept: document.getElementById("scope-dept"),
+    scopeDeptList: document.getElementById("scope-dept-list"),
+    scopeBr: document.getElementById("scope-br"),
+    scopeBrList: document.getElementById("scope-br-list"),
+    scopeStatus: document.getElementById("scope-status"),
+    scopeFilter: document.getElementById("scope-filter"),
+    scopeList: document.getElementById("scope-list"),
+    scopeSummary: document.getElementById("scope-summary"),
+  };
+
+  let reportRows = [];
+  let scopeGroups = [];
+  let activeTab = "scope";
+
+  function updateStats(countRows, countPeople) {
+    if (els.statRows) els.statRows.textContent = String(countRows);
+    if (els.statPeople) els.statPeople.textContent = String(countPeople);
+  }
+
+  function switchTab(tab) {
+    activeTab = tab;
+    els.tabs.forEach((btn) => {
+      btn.classList.toggle("is-active", btn.dataset.tab === tab);
+    });
+    if (els.tabScope) els.tabScope.hidden = tab !== "scope";
+    if (els.tabReports) els.tabReports.hidden = tab !== "reports";
+    if (tab === "scope") renderScope();
+    else renderReports();
+  }
+
+  // —— Report ACL ——
+  function renderReports() {
+    const filter = (els.filterPrs?.value || "").trim().toLowerCase();
+    const filtered = filter
+      ? reportRows.filter((row) => String(row.prs_no || "").toLowerCase().includes(filter))
+      : reportRows;
+    const people = new Set(filtered.map((r) => r.prs_no));
+    updateStats(filtered.length, people.size);
     if (els.listSummary) {
-      els.listSummary.textContent = sourceRows.length
-        ? `${sourceRows.length} รายการ · ${people.size} พนักงาน`
+      els.listSummary.textContent = filtered.length
+        ? `${filtered.length} รายการ · ${people.size} พนักงาน`
         : "ยังไม่มีสิทธิ์ที่กำหนดแบบเจาะจง";
     }
-  }
-
-  function groupByPrs(list) {
+    if (!els.list) return;
+    if (!filtered.length) {
+      els.list.innerHTML = `<div class="maintain-empty">${
+        filter ? "ไม่พบรายการตามคำค้นหา" : "ยังไม่มีสิทธิ์รายงานที่กำหนด"
+      }</div>`;
+      return;
+    }
     const map = new Map();
-    list.forEach((row) => {
+    filtered.forEach((row) => {
       const key = row.prs_no || "-";
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(row);
     });
-    return [...map.entries()];
-  }
-
-  function bindDeleteButtons(root) {
-    root.querySelectorAll("[data-del-prs]").forEach((button) => {
+    els.list.innerHTML = [...map.entries()]
+      .map(([prs, items]) => {
+        const rowsHtml = items
+          .map(
+            (row) => `
+            <div class="maintain-row">
+              <code class="${row.report_code === "ALL" ? "is-all" : row.report_code === "emc-report" ? "is-admin" : ""}">${escapeHtml(row.report_code)}</code>
+              <span class="maintain-row-label">${escapeHtml(row.report_label || row.report_code)}</span>
+              <button type="button" class="btn-danger" data-del-prs="${escapeHtml(row.prs_no)}" data-del-report="${escapeHtml(row.report_code)}">ลบ</button>
+            </div>`,
+          )
+          .join("");
+        return `<article class="maintain-person">
+          <div class="maintain-person-head"><strong>${escapeHtml(prs)}</strong><span>${items.length} สิทธิ์</span></div>
+          <div class="maintain-person-rows">${rowsHtml}</div>
+        </article>`;
+      })
+      .join("");
+    els.list.querySelectorAll("[data-del-prs]").forEach((button) => {
       button.addEventListener("click", async () => {
-        const prs = button.dataset.delPrs;
-        const report = button.dataset.delReport;
-        if (!window.confirm(`ลบสิทธิ์ ${report} ของ ${prs}?`)) return;
+        if (!window.confirm(`ลบสิทธิ์ ${button.dataset.delReport} ของ ${button.dataset.delPrs}?`)) return;
         try {
           const res = await fetch(
             withC(
-              `/api/admin/report-acl?prs_no=${encodeURIComponent(prs)}&report_code=${encodeURIComponent(report)}`,
+              `/api/admin/report-acl?prs_no=${encodeURIComponent(button.dataset.delPrs)}&report_code=${encodeURIComponent(button.dataset.delReport)}`,
             ),
             { method: "DELETE" },
           );
           const payload = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(detailMessage(payload));
-          setStatus("ลบสำเร็จ", true);
-          await loadAcl();
+          setStatus(els.formStatus, "ลบสำเร็จ", true);
+          await loadReports();
         } catch (error) {
-          setStatus(error.message || "ลบไม่สำเร็จ", false);
+          setStatus(els.formStatus, error.message, false);
         }
       });
     });
   }
 
-  function renderRows() {
-    const filter = (els.filterPrs?.value || "").trim().toLowerCase();
-    const filtered = filter
-      ? rows.filter((row) => String(row.prs_no || "").toLowerCase().includes(filter))
-      : rows;
-
-    updateStats(filtered);
-
-    if (!els.list) return;
-
-    if (!filtered.length) {
-      els.list.innerHTML = `<div class="maintain-empty">${
-        filter
-          ? "ไม่พบรายการตามคำค้นหา"
-          : "ยังไม่มีสิทธิ์รายงานที่กำหนด — ทุกคนยังเห็นทุกรายงานตามค่าเริ่มต้น"
-      }</div>`;
-      return;
-    }
-
-    const groups = groupByPrs(filtered);
-    els.list.innerHTML = groups
-      .map(([prs, items]) => {
-        const itemRows = items
-          .map(
-            (row) => `
-            <div class="maintain-row">
-              <code class="${codeClass(row.report_code)}">${escapeHtml(row.report_code)}</code>
-              <span class="maintain-row-label">${escapeHtml(row.report_label || row.report_code)}</span>
-              <button
-                type="button"
-                class="btn-danger"
-                data-del-prs="${escapeHtml(row.prs_no)}"
-                data-del-report="${escapeHtml(row.report_code)}"
-              >ลบ</button>
-            </div>`,
-          )
-          .join("");
-        return `
-          <article class="maintain-person">
-            <div class="maintain-person-head">
-              <strong>${escapeHtml(prs)}</strong>
-              <span>${items.length} สิทธิ์</span>
-            </div>
-            <div class="maintain-person-rows">${itemRows}</div>
-          </article>`;
-      })
-      .join("");
-
-    bindDeleteButtons(els.list);
-  }
-
-  async function loadOptions() {
+  async function loadReportOptions() {
     const res = await fetch(withC("/api/admin/report-acl/meta"));
     const payload = await res.json();
     if (!res.ok) throw new Error(detailMessage(payload));
-
     els.reportSelect.innerHTML = (payload.reports || [])
       .map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`)
       .join("");
-
     els.prsList.innerHTML = (payload.users || [])
       .map((user) => `<option value="${escapeHtml(user.prs_no)}"></option>`)
       .join("");
   }
 
-  async function loadAcl() {
+  async function loadReports() {
     const res = await fetch(withC("/api/admin/report-acl"));
     const payload = await res.json();
     if (!res.ok) throw new Error(detailMessage(payload));
-    rows = payload.rows || [];
-    renderRows();
+    reportRows = payload.rows || [];
+    if (activeTab === "reports") renderReports();
+  }
+
+  // —— Scope ZHR_AUTHORIZATION ——
+  function renderScope() {
+    const filter = (els.scopeFilter?.value || "").trim().toLowerCase();
+    const filtered = filter
+      ? scopeGroups.filter(
+          (g) =>
+            String(g.prsNo || "").toLowerCase().includes(filter) ||
+            String(g.empName || "").toLowerCase().includes(filter),
+        )
+      : scopeGroups;
+    const rowCount = filtered.reduce((sum, g) => sum + (g.authorizations?.length || 0), 0);
+    updateStats(rowCount, filtered.length);
+    if (els.scopeSummary) {
+      els.scopeSummary.textContent = filtered.length
+        ? `${filtered.length} พนักงาน · ${rowCount} สิทธิ์`
+        : "ไม่พบข้อมูล";
+    }
+    if (!els.scopeList) return;
+    if (!filtered.length) {
+      els.scopeList.innerHTML = `<div class="maintain-empty">${
+        filter ? "ไม่พบรายการตามคำค้นหา" : "ยังไม่มีสิทธิ์ใน ZHR_AUTHORIZATION"
+      }</div>`;
+      return;
+    }
+    els.scopeList.innerHTML = filtered
+      .map((group) => {
+        const rowsHtml = (group.authorizations || [])
+          .map(
+            (auth) => `
+            <div class="maintain-row maintain-row--scope">
+              <code>${escapeHtml(auth.deptCode || "")}</code>
+              <span class="maintain-row-label">${escapeHtml(auth.deptName || auth.deptCode || "")} · ${escapeHtml(auth.brName || auth.brCode || "-")}</span>
+              <button type="button" class="btn-danger"
+                data-scope-prs="${escapeHtml(group.prsNo)}"
+                data-scope-dept="${escapeHtml(auth.deptCode || "")}"
+                data-scope-br="${escapeHtml(auth.brCode == null ? "NULL" : auth.brCode)}"
+              >ลบ</button>
+            </div>`,
+          )
+          .join("");
+        return `<article class="maintain-person">
+          <div class="maintain-person-head">
+            <strong>${escapeHtml(group.prsNo)} · ${escapeHtml(group.empName || "")}</strong>
+            <span>${group.count || group.authorizations?.length || 0} สิทธิ์</span>
+          </div>
+          <div class="maintain-person-rows">${rowsHtml}</div>
+        </article>`;
+      })
+      .join("");
+
+    els.scopeList.querySelectorAll("[data-scope-prs]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const prs = button.dataset.scopePrs;
+        const dept = button.dataset.scopeDept;
+        const br = button.dataset.scopeBr;
+        if (!window.confirm(`ลบสิทธิ์ ${dept} / ${br} ของ ${prs}?`)) return;
+        try {
+          const res = await fetch(
+            withC(
+              `/api/admin/zhr-auth/authorizations?prsNo=${encodeURIComponent(prs)}&deptCode=${encodeURIComponent(dept)}&brCode=${encodeURIComponent(br)}`,
+            ),
+            { method: "DELETE" },
+          );
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || payload.ok === false) throw new Error(detailMessage(payload));
+          setStatus(els.scopeStatus, "ลบสำเร็จ", true);
+          await loadScope();
+        } catch (error) {
+          setStatus(els.scopeStatus, error.message, false);
+        }
+      });
+    });
+  }
+
+  async function loadScopeMeta() {
+    const [empRes, deptRes, brRes] = await Promise.all([
+      fetch(withC("/api/admin/zhr-auth/employees")),
+      fetch(withC("/api/admin/zhr-auth/departments")),
+      fetch(withC("/api/admin/zhr-auth/branches")),
+    ]);
+    const employees = await empRes.json();
+    const departments = await deptRes.json();
+    const branches = await brRes.json();
+    if (els.scopePrsList) {
+      els.scopePrsList.innerHTML = (employees.data || employees.rows || [])
+        .slice(0, 500)
+        .map((e) => {
+          const code = e.prsNo || e.PRS_NO || e.prs_no || "";
+          return code ? `<option value="${escapeHtml(code)}"></option>` : "";
+        })
+        .join("");
+    }
+    if (els.scopeDeptList) {
+      const depts = departments.data || [];
+      els.scopeDeptList.innerHTML =
+        `<option value="ALL"></option>` +
+        depts
+          .map((d) => {
+            const code = d.code || d.deptCode || d.DEPT_CODE || "";
+            return code ? `<option value="${escapeHtml(code)}"></option>` : "";
+          })
+          .join("");
+    }
+    if (els.scopeBrList) {
+      const brs = branches.data || [];
+      els.scopeBrList.innerHTML =
+        `<option value="ALL"></option>` +
+        brs
+          .map((b) => {
+            const code = b.code || b.brCode || b.BR_CODE || "";
+            return code ? `<option value="${escapeHtml(code)}"></option>` : "";
+          })
+          .join("");
+    }
+  }
+
+  async function loadScope() {
+    const res = await fetch(withC("/api/admin/zhr-auth/authorizations?limit=500"));
+    const payload = await res.json();
+    if (!res.ok || payload.ok === false) throw new Error(detailMessage(payload));
+    scopeGroups = payload.data || [];
+    if (activeTab === "scope") renderScope();
   }
 
   async function init() {
     const c = getPrsNo();
-    if (els.brand && c) {
-      els.brand.setAttribute("href", `/?c=${encodeURIComponent(c)}`);
-    }
-    if (els.backHome) {
-      els.backHome.setAttribute("href", c ? `/?c=${encodeURIComponent(c)}` : "/");
-    }
+    if (els.brand && c) els.brand.setAttribute("href", `/?c=${encodeURIComponent(c)}`);
+    if (els.backHome) els.backHome.setAttribute("href", c ? `/?c=${encodeURIComponent(c)}` : "/");
     if (!c) {
-      if (els.list) {
-        els.list.innerHTML =
-          '<div class="maintain-empty">ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)</div>';
-      }
-      setStatus("ต้องระบุ ?c=PRS_NO และต้องเป็นสิทธิ์ DEPT=ALL · BR=ALL", false);
-      els.form?.querySelectorAll("input,select,button").forEach((el) => {
-        el.disabled = true;
-      });
+      setStatus(els.scopeStatus, "ต้องระบุ ?c=PRS_NO และต้องเป็นสิทธิ์ DEPT=ALL · BR=ALL", false);
       return;
     }
 
+    els.tabs.forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
     try {
-      await loadOptions();
-      await loadAcl();
+      await Promise.all([loadScopeMeta(), loadScope(), loadReportOptions(), loadReports()]);
+      switchTab("scope");
     } catch (error) {
-      if (els.list) {
-        els.list.innerHTML = `<div class="maintain-empty">${escapeHtml(error.message)}</div>`;
+      setStatus(els.scopeStatus, error.message, false);
+      if (els.scopeList) {
+        els.scopeList.innerHTML = `<div class="maintain-empty">${escapeHtml(error.message)}</div>`;
       }
-      setStatus(error.message, false);
-      els.form?.querySelectorAll("input,select,button").forEach((el) => {
-        el.disabled = true;
-      });
     }
+
+    els.form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const prs_no = (els.prsInput?.value || "").trim();
+      const report_code = (els.reportSelect?.value || "").trim();
+      try {
+        const res = await fetch(withC("/api/admin/report-acl"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prs_no, report_code }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(detailMessage(payload));
+        setStatus(els.formStatus, `เพิ่ม ${prs_no} → ${report_code} สำเร็จ`, true);
+        els.prsInput.value = "";
+        await loadReports();
+      } catch (error) {
+        setStatus(els.formStatus, error.message, false);
+      }
+    });
+
+    els.scopeForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const prsNo = (els.scopePrs?.value || "").trim();
+      const deptCode = (els.scopeDept?.value || "").trim();
+      const brCode = (els.scopeBr?.value || "").trim() || null;
+      try {
+        const res = await fetch(withC("/api/admin/zhr-auth/authorizations"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prsNo, deptCode, brCode }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || payload.ok === false) throw new Error(detailMessage(payload));
+        setStatus(els.scopeStatus, `เพิ่ม ${prsNo} · ${deptCode} · ${brCode || "-"} สำเร็จ`, true);
+        els.scopePrs.value = "";
+        els.scopeDept.value = "";
+        els.scopeBr.value = "";
+        await loadScope();
+      } catch (error) {
+        setStatus(els.scopeStatus, error.message, false);
+      }
+    });
+
+    let t1 = null;
+    els.filterPrs?.addEventListener("input", () => {
+      clearTimeout(t1);
+      t1 = setTimeout(renderReports, 150);
+    });
+    let t2 = null;
+    els.scopeFilter?.addEventListener("input", () => {
+      clearTimeout(t2);
+      t2 = setTimeout(renderScope, 150);
+    });
   }
-
-  els.form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const prs_no = (els.prsInput?.value || "").trim();
-    const report_code = (els.reportSelect?.value || "").trim();
-    try {
-      const res = await fetch(withC("/api/admin/report-acl"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prs_no, report_code }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(detailMessage(payload));
-      setStatus(`เพิ่ม ${prs_no} → ${report_code} สำเร็จ`, true);
-      els.prsInput.value = "";
-      await loadAcl();
-    } catch (error) {
-      setStatus(error.message || "เพิ่มไม่สำเร็จ", false);
-    }
-  });
-
-  let filterTimer = null;
-  els.filterPrs?.addEventListener("input", () => {
-    clearTimeout(filterTimer);
-    filterTimer = setTimeout(() => {
-      renderRows();
-    }, 150);
-  });
 
   init();
 })();

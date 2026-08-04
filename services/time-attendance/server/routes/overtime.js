@@ -85,6 +85,135 @@ router.get("/overtime", async (req, res) => {
 });
 
 /**
+ * Real headcount as of `to` from ZHR_EMPLOYEE (pri_start_d / PRI_RES_D),
+ * with BR/DEPT from latest checkin — not limited to people who already did OT.
+ */
+router.get("/overtime/headcount", async (req, res) => {
+  const { to, c } = req.query;
+  if (!to) {
+    res.status(400).json({ error: "to is required (YYYY-MM-DD)" });
+    return;
+  }
+
+  try {
+    const auth = await requireReportAuth(req, res, REPORT_TIME_ATTENDANCE, { c });
+    if (!auth) return;
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("to", sql.Date, to);
+
+    const result = await request.query(`
+      SELECT
+        LTRIM(RTRIM(CAST(e.emp_code AS NVARCHAR(50)))) AS emp_code,
+        loc.EMP_KEY,
+        LTRIM(RTRIM(CAST(loc.BR_CODE AS NVARCHAR(50)))) AS BR_CODE,
+        LTRIM(RTRIM(CAST(loc.DEPT_CODE AS NVARCHAR(50)))) AS DEPT_CODE
+      FROM dbo.ZHR_EMPLOYEE e
+      OUTER APPLY (
+        SELECT TOP 1
+          c.EMP_KEY,
+          c.BR_CODE,
+          c.DEPT_CODE
+        FROM dbo.vw_employee_checkin c
+        WHERE (
+            LTRIM(RTRIM(CAST(c.PRS_NO AS NVARCHAR(50)))) =
+              LTRIM(RTRIM(CAST(e.emp_code AS NVARCHAR(50))))
+            OR (
+              TRY_CAST(c.PRS_NO AS BIGINT) IS NOT NULL
+              AND TRY_CAST(e.emp_code AS BIGINT) IS NOT NULL
+              AND TRY_CAST(c.PRS_NO AS BIGINT) = TRY_CAST(e.emp_code AS BIGINT)
+            )
+          )
+          AND c.TMR_DATE <= @to
+        ORDER BY c.TMR_DATE DESC
+      ) loc
+      WHERE e.emp_code IS NOT NULL
+        AND LTRIM(RTRIM(e.emp_code)) <> ''
+        AND e.pri_start_d IS NOT NULL
+        AND e.pri_start_d <= @to
+        AND (e.PRI_RES_D IS NULL OR e.PRI_RES_D > @to)
+    `);
+
+    function normalizeBranch(value) {
+      const code = String(value || "").trim();
+      if (code === "998" || code === "999" || code === "MMT") return "MMT";
+      return code;
+    }
+
+    function inAuthScope(branchCode, deptCode) {
+      if (!auth.has_all_dept) {
+        if (!auth.departments?.length) return false;
+        if (!deptCode || !auth.departments.includes(deptCode)) return false;
+      }
+      if (!auth.has_all_branch && auth.branches?.length) {
+        const allowed = new Set(auth.branches.map(normalizeBranch));
+        if (!branchCode || !allowed.has(branchCode)) return false;
+      }
+      return true;
+    }
+
+    const branches = new Map();
+    const departments = new Map();
+    const all = new Set();
+
+    for (const row of result.recordset) {
+      const empId = String(row.EMP_KEY ?? row.emp_code ?? "").trim();
+      if (!empId) continue;
+      const branchCode = normalizeBranch(row.BR_CODE);
+      const deptCode = String(row.DEPT_CODE || "").trim();
+
+      if (!inAuthScope(branchCode, deptCode)) continue;
+
+      all.add(empId);
+
+      if (branchCode) {
+        if (!branches.has(branchCode)) {
+          branches.set(branchCode, new Set());
+        }
+        branches.get(branchCode).add(empId);
+      }
+
+      if (deptCode) {
+        if (!departments.has(deptCode)) {
+          departments.set(deptCode, { branchCode: branchCode || "", employees: new Set() });
+        }
+        const dept = departments.get(deptCode);
+        dept.employees.add(empId);
+        if (branchCode && !dept.branchCode) dept.branchCode = branchCode;
+      }
+    }
+
+    res.json({
+      totalEmployees: all.size,
+      branches: [...branches.entries()]
+        .map(([code, employees]) => ({
+          code,
+          name: code,
+          totalEmployees: employees.size,
+        }))
+        .sort((a, b) => a.code.localeCompare(b.code, "th")),
+      departments: [...departments.entries()]
+        .map(([code, item]) => ({
+          code,
+          name: code,
+          branchCode: item.branchCode,
+          totalEmployees: item.employees.size,
+        }))
+        .sort((a, b) => a.code.localeCompare(b.code, "th")),
+      meta: {
+        asOf: to,
+        source: "ZHR_EMPLOYEE",
+        location: "latest vw_employee_checkin BR/DEPT",
+        auth,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * คน / ปริมาณเหล็ก (ZHR_PP) / ชม.OT รายเดือน + อัตราส่วน productivity
  * ขอบเขตแผนก: แผนกที่มีใน ZHR_PP (หรือ filter department ถ้าระบุ)
  */

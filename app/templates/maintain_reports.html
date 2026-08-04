@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Maintain สิทธิ์รายงาน</title>
+  <title>Maintain สิทธิ์เข้าถึง</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -19,12 +19,12 @@
       <div class="maintain-hero-copy">
         <a id="back-home" class="maintain-back" href="/">← ศูนย์รวม Dashboard</a>
         <p class="eyebrow">Administration</p>
-        <h1>Maintain สิทธิ์รายงาน</h1>
-        <p class="subtitle">กำหนดสิทธิ์การเข้าถึงแต่ละรายงาน · ใช้ได้เฉพาะ DEPT=ALL และ BR=ALL</p>
+        <h1>Maintain สิทธิ์เข้าถึง</h1>
+        <p class="subtitle">จัดการขอบเขตแผนก/สาขา และสิทธิ์โมดูลรายงาน · เฉพาะ DEPT=ALL และ BR=ALL</p>
       </div>
       <div class="maintain-hero-aside">
         <div class="maintain-stat">
-          <span class="maintain-stat-label">รายการสิทธิ์</span>
+          <span class="maintain-stat-label">รายการที่แสดง</span>
           <strong id="stat-rows">—</strong>
         </div>
         <div class="maintain-stat">
@@ -34,88 +34,136 @@
       </div>
     </header>
 
-    <section class="maintain-legend" aria-label="รหัสรายงาน">
-      <article class="maintain-legend-card">
-        <span class="maintain-pill">e-leave</span>
-        <div>
-          <strong>Dashboard E-Leave</strong>
-          <p>อนุมัติลา / OT</p>
-        </div>
-      </article>
-      <article class="maintain-legend-card">
-        <span class="maintain-pill">time-attendance</span>
-        <div>
-          <strong>Time Attendance</strong>
-          <p>สถิติลา · OT · มาสาย</p>
-        </div>
-      </article>
-      <article class="maintain-legend-card maintain-legend-card--hidden">
-        <span class="maintain-pill maintain-pill--admin">emc-report</span>
-        <div>
-          <strong>HR Monthly Performance</strong>
-          <p>ซ่อนจาก landing · เฉพาะ ALL เห็นเมนู</p>
-        </div>
-      </article>
-      <article class="maintain-legend-card">
-        <span class="maintain-pill maintain-pill--all">ALL</span>
-        <div>
-          <strong>ทุกรายงาน</strong>
-          <p>เปิดครบทุกโมดูล</p>
-        </div>
-      </article>
+    <nav class="maintain-tabs" aria-label="ประเภทสิทธิ์">
+      <button type="button" class="maintain-tab is-active" data-tab="scope">ขอบเขตแผนก / สาขา</button>
+      <button type="button" class="maintain-tab" data-tab="reports">สิทธิ์โมดูลรายงาน</button>
+    </nav>
+
+    <section id="tab-scope" class="maintain-tab-panel">
+      <div class="maintain-grid">
+        <aside class="maintain-side">
+          <section class="card maintain-panel">
+            <div class="maintain-panel-head">
+              <h2>เพิ่มสิทธิ์ ZHR_AUTHORIZATION</h2>
+              <p>PRS_NO + DEPT_CODE + BR_CODE</p>
+            </div>
+            <form id="scope-form" class="maintain-form">
+              <label>
+                <span>รหัสพนักงาน</span>
+                <input id="scope-prs" list="scope-prs-list" required placeholder="เช่น 57110047" />
+                <datalist id="scope-prs-list"></datalist>
+              </label>
+              <label>
+                <span>แผนก (DEPT_CODE)</span>
+                <input id="scope-dept" list="scope-dept-list" required placeholder="ALL หรือรหัสแผนก" />
+                <datalist id="scope-dept-list"></datalist>
+              </label>
+              <label>
+                <span>สาขา (BR_CODE)</span>
+                <input id="scope-br" list="scope-br-list" placeholder="ALL / ว่าง / รหัสสาขา" />
+                <datalist id="scope-br-list"></datalist>
+              </label>
+              <button type="submit" class="btn btn-primary maintain-submit">เพิ่มสิทธิ์</button>
+            </form>
+            <p id="scope-status" class="maintain-status" hidden></p>
+          </section>
+          <section class="card maintain-panel maintain-rules">
+            <h2>หมายเหตุ</h2>
+            <ul>
+              <li><code>DEPT_CODE=ALL</code> = ทุกแผนก</li>
+              <li><code>BR_CODE=ALL</code> = ทุกสาขา</li>
+              <li>หนึ่งคนมีได้หลายแถว (หลายแผนก/สาขา)</li>
+              <li>ย้ายมาจากระบบ HRreportMaintain</li>
+            </ul>
+          </section>
+        </aside>
+        <section class="card maintain-panel maintain-list-panel">
+          <div class="maintain-table-head">
+            <div>
+              <h2>รายการขอบเขต</h2>
+              <p id="scope-summary">กำลังโหลด...</p>
+            </div>
+            <label class="maintain-filter">
+              <span>ค้นหา PRS_NO</span>
+              <input id="scope-filter" type="search" placeholder="พิมพ์รหัสพนักงาน" />
+            </label>
+          </div>
+          <div id="scope-list" class="maintain-acl-list">
+            <div class="maintain-empty">กำลังโหลด...</div>
+          </div>
+        </section>
+      </div>
     </section>
 
-    <div class="maintain-grid">
-      <aside class="maintain-side">
-        <section class="card maintain-panel">
-          <div class="maintain-panel-head">
-            <h2>เพิ่มสิทธิ์</h2>
-            <p>เลือกพนักงานแล้วระบุรายงานที่อนุญาต</p>
-          </div>
-          <form id="acl-form" class="maintain-form">
-            <label>
-              <span>รหัสพนักงาน (PRS_NO)</span>
-              <input id="prs-input" list="prs-list" name="prs_no" autocomplete="off" required placeholder="เช่น 57110047" />
-              <datalist id="prs-list"></datalist>
-            </label>
-            <label>
-              <span>รายงาน</span>
-              <select id="report-select" name="report_code" required></select>
-            </label>
-            <button type="submit" class="btn btn-primary maintain-submit">เพิ่มสิทธิ์</button>
-          </form>
-          <p id="form-status" class="maintain-status" hidden></p>
-        </section>
-
-        <section class="card maintain-panel maintain-rules">
-          <h2>กฎการทำงาน</h2>
-          <ul>
-            <li>ยัง<strong>ไม่มีแถว</strong> → เห็นทุกรายงาน (ค่าเริ่มต้น)</li>
-            <li><strong>มีแถวแล้ว</strong> → เห็นเฉพาะที่ระบุ</li>
-            <li>ใส่ <code>ALL</code> → เปิดทุกโมดูลรวม EMC</li>
-            <li>เมนูที่ซ่อนบน landing โชว์เฉพาะสิทธิ์ ALL</li>
-          </ul>
-        </section>
-      </aside>
-
-      <section class="card maintain-panel maintain-list-panel">
-        <div class="maintain-table-head">
-          <div>
-            <h2>รายการสิทธิ์</h2>
-            <p id="list-summary">กำลังโหลด...</p>
-          </div>
-          <label class="maintain-filter">
-            <span>ค้นหา PRS_NO</span>
-            <input id="filter-prs" type="search" placeholder="พิมพ์รหัสพนักงาน" />
-          </label>
-        </div>
-        <div id="acl-list" class="maintain-acl-list">
-          <div class="maintain-empty">กำลังโหลด...</div>
-        </div>
+    <section id="tab-reports" class="maintain-tab-panel" hidden>
+      <section class="maintain-legend" aria-label="รหัสรายงาน">
+        <article class="maintain-legend-card">
+          <span class="maintain-pill">e-leave</span>
+          <div><strong>Dashboard E-Leave</strong><p>อนุมัติลา / OT</p></div>
+        </article>
+        <article class="maintain-legend-card">
+          <span class="maintain-pill">time-attendance</span>
+          <div><strong>Time Attendance</strong><p>สถิติลา · OT · สแกน · PDF</p></div>
+        </article>
+        <article class="maintain-legend-card maintain-legend-card--hidden">
+          <span class="maintain-pill maintain-pill--admin">emc-report</span>
+          <div><strong>HR Monthly Performance</strong><p>เฉพาะ ALL เห็นเมนู</p></div>
+        </article>
+        <article class="maintain-legend-card">
+          <span class="maintain-pill maintain-pill--all">ALL</span>
+          <div><strong>ทุกรายงาน</strong><p>เปิดครบทุกโมดูล</p></div>
+        </article>
       </section>
-    </div>
+
+      <div class="maintain-grid">
+        <aside class="maintain-side">
+          <section class="card maintain-panel">
+            <div class="maintain-panel-head">
+              <h2>เพิ่มสิทธิ์รายงาน</h2>
+              <p>ตาราง ZHR_AUTHORIZATION_REPORT</p>
+            </div>
+            <form id="acl-form" class="maintain-form">
+              <label>
+                <span>รหัสพนักงาน (PRS_NO)</span>
+                <input id="prs-input" list="prs-list" name="prs_no" autocomplete="off" required placeholder="เช่น 57110047" />
+                <datalist id="prs-list"></datalist>
+              </label>
+              <label>
+                <span>รายงาน</span>
+                <select id="report-select" name="report_code" required></select>
+              </label>
+              <button type="submit" class="btn btn-primary maintain-submit">เพิ่มสิทธิ์</button>
+            </form>
+            <p id="form-status" class="maintain-status" hidden></p>
+          </section>
+          <section class="card maintain-panel maintain-rules">
+            <h2>กฎการทำงาน</h2>
+            <ul>
+              <li>ยัง<strong>ไม่มีแถว</strong> → เห็นทุกรายงาน</li>
+              <li><strong>มีแถวแล้ว</strong> → เห็นเฉพาะที่ระบุ</li>
+              <li>ใส่ <code>ALL</code> → เปิดทุกโมดูลรวม EMC</li>
+            </ul>
+          </section>
+        </aside>
+        <section class="card maintain-panel maintain-list-panel">
+          <div class="maintain-table-head">
+            <div>
+              <h2>รายการสิทธิ์รายงาน</h2>
+              <p id="list-summary">กำลังโหลด...</p>
+            </div>
+            <label class="maintain-filter">
+              <span>ค้นหา PRS_NO</span>
+              <input id="filter-prs" type="search" placeholder="พิมพ์รหัสพนักงาน" />
+            </label>
+          </div>
+          <div id="acl-list" class="maintain-acl-list">
+            <div class="maintain-empty">กำลังโหลด...</div>
+          </div>
+        </section>
+      </div>
+    </section>
   </div>
 
-  <script src="/static/maintain.js?v=2"></script>
+  <script src="/static/maintain.js?v=4"></script>
 </body>
 </html>

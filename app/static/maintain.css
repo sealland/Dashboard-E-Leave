@@ -12,6 +12,39 @@
   padding-bottom: 40px;
 }
 
+.maintain-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.maintain-tab {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.maintain-tab.is-active {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.maintain-tab-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.maintain-row--scope {
+  grid-template-columns: minmax(72px, 0.7fr) minmax(0, 1.6fr) auto;
+}
+
 .maintain-hero {
   display: flex;
   justify-content: space-between;

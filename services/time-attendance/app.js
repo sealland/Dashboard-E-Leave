@@ -19,6 +19,7 @@ import { escapeHtml, formatDisplayDate, formatIsoDate, formatNumber, formatScanD
 import { formatLateMinutes } from "./shared/late-calc.js";
 import { getRowStatus } from "./shared/status.js";
 import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
+import { mountSidebarNav } from "./shared/ta-nav.js";
 
 const state = {
   rows: [],
@@ -561,7 +562,7 @@ function renderDetailTable(rows) {
         return `
           <tr>
             <td>${escapeHtml(row.date)}</td>
-            <td>${escapeHtml(row.empKey)}</td>
+            <td>${escapeHtml(row.prsNo || row.empKey)}</td>
             <td>${escapeHtml(row.name)}</td>
             <td>${escapeHtml(row.departmentName)}</td>
             <td>${escapeHtml(formatShiftHours(row.shift))}</td>
@@ -736,6 +737,7 @@ function bindEvents() {
 runSelfCheck();
 bindEvents();
 setDefaults();
+mountSidebarNav("leave");
 preserveAuthInLinks();
 requireAuthorization("time-attendance").then((auth) => {
   if (!auth) return;

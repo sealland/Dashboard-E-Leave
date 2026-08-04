@@ -17,6 +17,14 @@ ALL_REPORT_CODES: tuple[str, ...] = (
     REPORT_EMC,
 )
 
+# ALL/ALL executives who may use dashboards but must not manage ACL
+MAINTAIN_EXCLUDED_PRS: frozenset[str] = frozenset(
+    {
+        "51060008",
+        "23010002",
+    }
+)
+
 
 @dataclass
 class Authorization:
@@ -51,9 +59,16 @@ class Authorization:
         return code in self.reports
 
     @property
-    def can_maintain(self) -> bool:
-        """Maintain ACL: only DEPT=ALL and BR=ALL."""
+    def is_all_scope(self) -> bool:
+        """DEPT=ALL and BR=ALL (executive / full data scope)."""
         return self.allowed and self.has_all_dept and self.has_all_branch
+
+    @property
+    def can_maintain(self) -> bool:
+        """Maintain ACL UI/API — full scope, excluding named executives."""
+        if not self.is_all_scope:
+            return False
+        return str(self.prs_no or "").strip() not in MAINTAIN_EXCLUDED_PRS
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +80,7 @@ class Authorization:
             "has_all_dept": self.has_all_dept,
             "has_all_branch": self.has_all_branch,
             "has_all_reports": self.has_all_reports,
+            "is_all_scope": self.is_all_scope,
             "can_maintain": self.can_maintain,
             "active": self.active,
             "allowed": self.allowed,

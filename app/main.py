@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -23,6 +23,7 @@ from app.report_acl import (
 from app.requirements import NEXT_DASHBOARD_REQUIREMENTS
 from app.queries import get_alerts, get_by_dept, get_by_type, get_filter_options, get_records, get_summary
 from app.time_attendance_proxy import proxy_time_attendance
+from app import zhr_auth_admin
 
 APP_DIR = Path(__file__).resolve().parent
 
@@ -34,6 +35,26 @@ templates = Jinja2Templates(directory=APP_DIR / "templates")
 class ReportAclBody(BaseModel):
     prs_no: str = Field(min_length=1)
     report_code: str = Field(min_length=1)
+
+
+class ZhrAuthorizationCreateBody(BaseModel):
+    prsNo: str = Field(min_length=1)
+    deptCode: str = Field(min_length=1)
+    brCode: Optional[str] = None
+
+
+class ZhrAuthorizationUpdateBody(BaseModel):
+    prsNo: str = Field(min_length=1)
+    oldDeptCode: Optional[str] = None
+    oldBrCode: Optional[str] = None
+    deptCode: str = Field(min_length=1)
+    brCode: Optional[str] = None
+
+
+class ZhrAuthorizationDeleteBody(BaseModel):
+    prsNo: str = Field(min_length=1)
+    deptCode: str = Field(min_length=1)
+    brCode: Optional[str] = None
 
 
 def _with_auth_query(url: str | None, c: Optional[str]) -> str | None:
@@ -56,11 +77,12 @@ def _nav_context(
 ) -> dict:
     code = (c or "").strip() or None
     can_maintain = bool(auth and auth.can_maintain)
+    is_all_scope = bool(auth and auth.is_all_scope)
     dashboards = []
     for item in DASHBOARDS:
         hidden_default = not item.get("show_on_landing", True)
-        # Hidden modules (e.g. EMC) visible only to DEPT=ALL · BR=ALL
-        if hidden_default and not can_maintain:
+        # Hidden modules (e.g. EMC) visible to DEPT=ALL · BR=ALL (including executives)
+        if hidden_default and not is_all_scope:
             continue
         if auth and auth.active and auth.allowed and not can_access_report(auth, item["id"]):
             continue
@@ -220,6 +242,163 @@ async def api_admin_report_acl_delete(
     if not deleted:
         raise HTTPException(status_code=404, detail="ไม่พบรายการที่จะลบ")
     return {"ok": True, "auth": auth.to_dict()}
+
+
+def _zhr_admin_call(function, *args, **kwargs):
+    try:
+        return function(*args, **kwargs)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Server error: {exc}"},
+        )
+
+
+@app.get("/api/admin/zhr-auth/authorizations")
+async def api_admin_zhr_authorizations(
+    prsNo: Optional[str] = None,
+    deptCode: Optional[str] = None,
+    brCode: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=2000),
+    c: Optional[str] = None,
+):
+    _require_maintainer(c)
+    return _zhr_admin_call(
+        zhr_auth_admin.list_authorizations,
+        prs_no=prsNo,
+        dept_code=deptCode,
+        br_code=brCode,
+        page=page,
+        limit=limit,
+    )
+
+
+@app.get("/api/admin/zhr-auth/authorizations/tree")
+async def api_admin_zhr_authorizations_tree(c: Optional[str] = None):
+    _require_maintainer(c)
+    return _zhr_admin_call(zhr_auth_admin.get_authorization_tree)
+
+
+@app.get("/api/admin/zhr-auth/authorizations/{prs_no}")
+async def api_admin_zhr_authorization_detail(
+    prs_no: str,
+    c: Optional[str] = None,
+):
+    _require_maintainer(c)
+    return _zhr_admin_call(zhr_auth_admin.get_authorization_detail, prs_no)
+
+
+@app.post("/api/admin/zhr-auth/authorizations")
+async def api_admin_zhr_authorization_create(
+    body: ZhrAuthorizationCreateBody,
+    c: Optional[str] = None,
+):
+    auth = _require_maintainer(c)
+    return _zhr_admin_call(
+        zhr_auth_admin.create_authorization,
+        prs_no=body.prsNo,
+        dept_code=body.deptCode,
+        br_code=body.brCode,
+        changed_by=auth.prs_no,
+    )
+
+
+@app.put("/api/admin/zhr-auth/authorizations")
+async def api_admin_zhr_authorization_update(
+    body: ZhrAuthorizationUpdateBody,
+    c: Optional[str] = None,
+):
+    auth = _require_maintainer(c)
+    return _zhr_admin_call(
+        zhr_auth_admin.update_authorization,
+        prs_no=body.prsNo,
+        old_dept_code=body.oldDeptCode,
+        old_br_code=body.oldBrCode,
+        dept_code=body.deptCode,
+        br_code=body.brCode,
+        changed_by=auth.prs_no,
+    )
+
+
+@app.delete("/api/admin/zhr-auth/authorizations")
+async def api_admin_zhr_authorization_delete(
+    body: Optional[ZhrAuthorizationDeleteBody] = Body(default=None),
+    prsNo: Optional[str] = None,
+    deptCode: Optional[str] = None,
+    brCode: Optional[str] = None,
+    c: Optional[str] = None,
+):
+    auth = _require_maintainer(c)
+    target_prs = body.prsNo if body else prsNo
+    target_dept = body.deptCode if body else deptCode
+    target_branch = body.brCode if body else brCode
+    if not target_prs or not target_dept:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "PRS_NO and DEPT_CODE are required"},
+        )
+    result = _zhr_admin_call(
+        zhr_auth_admin.delete_authorization,
+        prs_no=target_prs,
+        dept_code=target_dept,
+        br_code=target_branch,
+        changed_by=auth.prs_no,
+    )
+    if result is None:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "Authorization not found"},
+        )
+    return result
+
+
+@app.get("/api/admin/zhr-auth/audit-logs")
+async def api_admin_zhr_audit_logs(
+    prsNo: Optional[str] = None,
+    dateFrom: Optional[str] = None,
+    dateTo: Optional[str] = None,
+    action: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=2000),
+    c: Optional[str] = None,
+):
+    _require_maintainer(c)
+    return _zhr_admin_call(
+        zhr_auth_admin.list_audit_logs,
+        prs_no=prsNo,
+        date_from=dateFrom,
+        date_to=dateTo,
+        action=action,
+        page=page,
+        limit=limit,
+    )
+
+
+@app.get("/api/admin/zhr-auth/employees")
+async def api_admin_zhr_employees(
+    search: Optional[str] = None,
+    c: Optional[str] = None,
+):
+    _require_maintainer(c)
+    return _zhr_admin_call(zhr_auth_admin.list_employees, search)
+
+
+@app.get("/api/admin/zhr-auth/departments")
+async def api_admin_zhr_departments(c: Optional[str] = None):
+    _require_maintainer(c)
+    return _zhr_admin_call(zhr_auth_admin.list_departments)
+
+
+@app.get("/api/admin/zhr-auth/branches")
+async def api_admin_zhr_branches(
+    deptCode: Optional[str] = None,
+    c: Optional[str] = None,
+):
+    _require_maintainer(c)
+    return _zhr_admin_call(zhr_auth_admin.list_branches, deptCode)
 
 
 @app.get("/api/auth")

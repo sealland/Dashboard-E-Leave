@@ -27,6 +27,9 @@ function normalizeRow(row) {
   for (const [key, value] of Object.entries(row)) {
     if (key === "TMR_DATE" || key === "TMT_DATE") {
       normalized[key] = normalizeDate(value);
+    } else if (key === "PRS_NO" || key === "EMP_KEY") {
+      // Keep as string so codes are never truncated by numeric JSON types
+      normalized[key] = value == null ? "" : String(value).trim();
     } else if (value instanceof Date) {
       normalized[key] = value.toISOString();
     } else if (value === null || value === undefined) {
@@ -61,6 +64,86 @@ router.get("/auth", async (req, res) => {
     res.json(auth);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/branch-codes", async (req, res) => {
+  try {
+    const auth = await requireReportAuth(req, res, REPORT_TIME_ATTENDANCE);
+    if (!auth) return;
+
+    const pool = await getPool();
+    let branchCodes = [];
+
+    async function listAllBranches() {
+      const queries = [
+        `
+          SELECT BR_CODE
+          FROM dbo.vw_employee_checkin
+          WHERE BR_CODE IS NOT NULL
+            AND LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(50)))) <> ''
+            AND UPPER(LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(50))))) <> 'ALL'
+          GROUP BY BR_CODE
+          ORDER BY BR_CODE
+        `,
+        `
+          SELECT BR_CODE
+          FROM dbo.vw_empcheck
+          WHERE BR_CODE IS NOT NULL
+            AND LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(50)))) <> ''
+            AND UPPER(LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(50))))) <> 'ALL'
+          GROUP BY BR_CODE
+          ORDER BY BR_CODE
+        `,
+      ];
+      let lastError = null;
+      for (const sqlText of queries) {
+        try {
+          const result = await pool.request().query(sqlText);
+          return result.recordset
+            .map((row) => String(row.BR_CODE ?? "").trim())
+            .filter(Boolean);
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error("Unable to list branches");
+    }
+
+    if (auth.has_all_branch) {
+      branchCodes = await listAllBranches();
+    } else if (auth.branches?.length) {
+      branchCodes = auth.branches
+        .map((code) => String(code ?? "").trim())
+        .filter((code) => code && code.toUpperCase() !== "ALL");
+    } else {
+      const selfBr = await pool
+        .request()
+        .input("prs_no", sql.NVarChar(50), auth.prs_no)
+        .query(`
+          SELECT DISTINCT BR_CODE
+          FROM dbo.vw_employee_checkin
+          WHERE LTRIM(RTRIM(CAST(PRS_NO AS NVARCHAR(50)))) = @prs_no
+            AND BR_CODE IS NOT NULL
+            AND LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(50)))) <> ''
+            AND UPPER(LTRIM(RTRIM(CAST(BR_CODE AS NVARCHAR(50))))) <> 'ALL'
+          ORDER BY BR_CODE
+        `);
+      branchCodes = selfBr.recordset
+        .map((row) => String(row.BR_CODE ?? "").trim())
+        .filter(Boolean);
+    }
+
+    res.json({
+      ok: true,
+      data: branchCodes,
+      meta: {
+        has_all_branch: Boolean(auth.has_all_branch),
+        count: branchCodes.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 

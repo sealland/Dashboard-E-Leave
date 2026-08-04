@@ -1,11 +1,11 @@
 import {
-  buildHeadcountFromAttendance,
   buildOvertimeGroupSummary,
   buildOvertimeSummary,
+  filterHeadcount,
   normalizeBranchCode,
 } from "./shared/ot-aggregate.js";
 import { getOvertimeLabel, OT_DF_CODES } from "./shared/df-code-map.js";
-import { fetchOvertime, fetchPpProductivity } from "./shared/api.js";
+import { fetchOvertime, fetchOvertimeHeadcount, fetchPpProductivity } from "./shared/api.js";
 import {
   getDefaultRange,
   parseUrlFilters,
@@ -17,6 +17,7 @@ import {
   formatNumber,
 } from "./shared/format.js";
 import { preserveAuthInLinks, requireAuthorization, renderAuthStatus } from "./shared/prs-auth.js";
+import { mountSidebarNav } from "./shared/ta-nav.js";
 
 const els = {
   fromInput: document.getElementById("from-input"),
@@ -48,6 +49,8 @@ const state = {
   deptGroups: [],
   filteredOtRows: [],
   headcount: null,
+  headcountRaw: null,
+  headcountKey: null,
   selectedAvgBranch: null,
   selectedAvgDept: null,
   otSummary: null,
@@ -111,12 +114,11 @@ function getFilteredOtRows() {
   return state.rows.filter((row) => rowMatchesBranchDept(row));
 }
 
-function getFilteredAttendanceRows() {
-  return getFilteredOtRows();
-}
-
 function getHeadcount() {
-  return buildHeadcountFromAttendance(getFilteredAttendanceRows());
+  return filterHeadcount(state.headcountRaw, {
+    branch: state.filters.branch,
+    department: state.filters.department,
+  });
 }
 
 function populateFilters() {
@@ -1009,27 +1011,55 @@ function refresh() {
 
 async function loadData() {
   const key = `${state.filters.from}__${state.filters.to}__${state.filters.df_code}`;
-  if (state.fetchedKey === key && state.rows.length) {
+  const headcountKey = state.filters.to;
+  const needOt = !(state.fetchedKey === key && state.rows.length);
+  const needHeadcount = !(state.headcountKey === headcountKey && state.headcountRaw);
+
+  if (!needOt && !needHeadcount) {
     refresh();
     return;
   }
 
   setLoading(true);
   try {
-    const otPayload = await fetchOvertime({
-      from: state.filters.from,
-      to: state.filters.to,
-      df_code: state.filters.df_code,
-    });
-    state.rows = otPayload.rows;
-    state.fetchedKey = key;
-    populateFilters();
-    if (els.connectionStatus) {
-      els.connectionStatus.textContent = `เชื่อมต่อแล้ว · OT ${formatNumber(otPayload.meta?.count ?? 0)} แถว · พนักงาน ${formatNumber(getHeadcount().totalEmployees)} คน`;
-      els.connectionStatus.classList.remove("is-error");
+    const tasks = [];
+    if (needOt) {
+      tasks.push(
+        fetchOvertime({
+          from: state.filters.from,
+          to: state.filters.to,
+          df_code: state.filters.df_code,
+        }).then((payload) => ({ type: "ot", payload })),
+      );
     }
-    if (otPayload.meta?.auth) {
-      renderAuthStatus(els.connectionStatus, otPayload.meta.auth);
+    if (needHeadcount) {
+      tasks.push(
+        fetchOvertimeHeadcount({ to: state.filters.to }).then((payload) => ({
+          type: "headcount",
+          payload,
+        })),
+      );
+    }
+
+    const results = await Promise.all(tasks);
+    for (const item of results) {
+      if (item.type === "ot") {
+        state.rows = item.payload.rows;
+        state.fetchedKey = key;
+        populateFilters();
+        if (item.payload.meta?.auth) {
+          renderAuthStatus(els.connectionStatus, item.payload.meta.auth);
+        }
+      }
+      if (item.type === "headcount") {
+        state.headcountRaw = item.payload;
+        state.headcountKey = headcountKey;
+      }
+    }
+
+    if (els.connectionStatus) {
+      els.connectionStatus.textContent = `เชื่อมต่อแล้ว · OT ${formatNumber(state.rows.length)} แถว · พนักงาน ${formatNumber(getHeadcount().totalEmployees)} คน`;
+      els.connectionStatus.classList.remove("is-error");
     }
     refresh();
   } catch (error) {
@@ -1089,6 +1119,7 @@ function bindEvents() {
 
 bindEvents();
 setDefaults();
+mountSidebarNav("ot");
 preserveAuthInLinks();
 requireAuthorization("time-attendance").then((auth) => {
   if (!auth) return;

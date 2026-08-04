@@ -1,5 +1,20 @@
 import { withBasePath } from "./base-path.js";
 
+export async function fetchOvertimeHeadcount({ to }) {
+  if (!to) throw new Error("to is required");
+  const params = new URLSearchParams({ to });
+  const { withAuthParams } = await import("./prs-auth.js");
+  withAuthParams(params);
+  const response = await fetch(
+    `${withBasePath("/api/overtime/headcount")}?${params.toString()}`,
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "ไม่สามารถโหลดจำนวนพนักงานได้");
+  }
+  return payload;
+}
+
 export async function fetchOvertime(filters) {
   const { getDateRange } = await import("./filters.js");
   const from = filters.from || getDateRange(filters).from;

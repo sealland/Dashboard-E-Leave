@@ -8,6 +8,7 @@ import {
   renderAuthStatus,
   withAuthParams,
 } from "./shared/prs-auth.js";
+import { mountSidebarNav } from "./shared/ta-nav.js";
 
 const THAI_MONTHS = [
   { value: 1, label: "มกราคม", short: "ม.ค." },
@@ -66,7 +67,9 @@ const BU_TREEMAP_OTHER_COLOR = BU_TREEMAP_COLOR_BY_CODE["อื่นๆ"];
 
 let workforceCache = null;
 let workforceCacheKey = "";
-let turnoverCache = null;
+
+/** Expected API meta.source */
+const TURNOVER_SOURCE = "ZHR_EMPLOYEE";
 
 function workforceKey(filters) {
   return `${filters.year}-${filters.month}`;
@@ -149,7 +152,12 @@ async function fetchWorkforce(filters) {
 
 async function fetchTurnover(year) {
   const params = withAuthParams(new URLSearchParams({ year: String(year) }));
-  const response = await fetch(`${withBasePath("/api/emc/turnover")}?${params.toString()}`);
+  // Bust browser/proxy caches left over from the ZHR_EMPLOYEE experiment.
+  params.set("_src", TURNOVER_SOURCE);
+  params.set("_v", "5");
+  const response = await fetch(`${withBasePath("/api/emc/turnover")}?${params.toString()}`, {
+    cache: "no-store",
+  });
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error || "ไม่สามารถโหลด Turnover Rate ได้");
@@ -1003,6 +1011,7 @@ function renderTurnover(payload) {
           <div class="turnover-kpi turnover-kpi--previous">${escapeHtml(String(previous.year + 543))} Turnover <strong>${formatPct(previous.averageRate)}</strong> / Month</div>
         </div>
       </div>
+      <p class="turnover-source-note">แหล่งข้อมูล: ${escapeHtml(payload?.meta?.source || "-")} · คนอยู่ ณ สิ้นเดือน / คนออกจาก PRI_RES_D</p>
       <div class="turnover-chart-wrap">
         <svg viewBox="0 0 ${width} ${height}" class="turnover-chart" role="img" aria-label="Turnover Rate เปรียบเทียบสองปีรายเดือน">
           ${grid}
@@ -1237,9 +1246,7 @@ async function refresh() {
       workforceCache && workforceCacheKey === cacheKey
         ? Promise.resolve(workforceCache)
         : fetchWorkforce(filters);
-    const turnoverPromise = turnoverCache
-      ? Promise.resolve(turnoverCache)
-      : fetchTurnover(calendar.year);
+    const turnoverPromise = fetchTurnover(calendar.year);
     const laborPromise = fetchLaborPerTon(filters);
     const [payload, workforcePayload, turnoverPayload, laborPayload] = await Promise.all([
       payloadPromise,
@@ -1249,9 +1256,14 @@ async function refresh() {
     ]);
     workforceCache = workforcePayload;
     workforceCacheKey = cacheKey;
-    if (!turnoverCache) turnoverCache = turnoverPayload;
+    if (turnoverPayload?.meta?.source !== TURNOVER_SOURCE) {
+      const got = turnoverPayload?.meta?.source || "(missing)";
+      throw new Error(
+        `Turnover API ยังเป็น ${got} — ต้อง restart time-attendance ให้ใช้ ${TURNOVER_SOURCE} (ปี 2568 ควรใกล้ 0)`,
+      );
+    }
     renderWorkforce(workforceCache);
-    renderTurnover(turnoverCache);
+    renderTurnover(turnoverPayload);
     renderLaborPerTon(laborPayload);
     renderChart(payload);
     renderTable(payload);
@@ -1266,7 +1278,7 @@ async function refresh() {
     if (els.workforce && !workforceCache) {
       els.workforce.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
-    if (els.turnover && !turnoverCache) {
+    if (els.turnover) {
       els.turnover.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
     if (els.laborPerTon) {
@@ -1288,6 +1300,7 @@ function init() {
 }
 
 ensureAuthInUrl();
+mountSidebarNav("emc");
 preserveAuthInLinks();
 requireAuthorization("emc-report").then((auth) => {
   if (!auth) return;

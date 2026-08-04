@@ -81,11 +81,36 @@ export async function fetchAuthorization() {
   ensureAuthInUrl();
   const params = withAuthParams(new URLSearchParams());
   const response = await fetch(`${withBasePath("/api/auth")}?${params.toString()}`);
-  const payload = await response.json();
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("ไม่สามารถโหลดสิทธิ์ได้");
+  }
   if (!response.ok) {
-    throw new Error(payload.error || "ไม่สามารถโหลดสิทธิ์ได้");
+    throw new Error(payload.error || payload.detail || "ไม่สามารถโหลดสิทธิ์ได้");
   }
   return payload;
+}
+
+export function canAccessReport(auth, reportCode) {
+  if (!reportCode) return true;
+  if (!auth?.allowed) return false;
+  if (auth.has_all_reports === true) return true;
+
+  const reports = Array.isArray(auth.reports) ? auth.reports : null;
+  // Legacy API (ก่อนมี report ACL) — ไม่ส่งฟิลด์มา → อนุญาตตามสิทธิ์เดิม
+  if (auth.has_all_reports == null && reports == null) return true;
+
+  if (!reports || !reports.length) {
+    // has_all_reports=false และไม่มีรายการ = ไม่มีสิทธิ์รายงาน
+    return auth.has_all_reports !== false;
+  }
+
+  if (reports.some((code) => String(code).trim().toUpperCase() === "ALL")) {
+    return true;
+  }
+  return reports.includes(reportCode);
 }
 
 export function renderAuthStatus(el, auth) {
@@ -151,10 +176,22 @@ function hideAuthBlockedOverlay() {
 
 /** Returns auth if allowed (and report if specified), otherwise null and shows blocked UI. */
 export async function requireAuthorization(reportCode = null) {
-  const auth = await fetchAuthorization();
+  let auth;
+  try {
+    auth = await fetchAuthorization();
+  } catch (error) {
+    renderAuthStatus(null, {
+      active: false,
+      allowed: false,
+      message: error.message || "ไม่สามารถโหลดสิทธิ์ได้",
+    });
+    return null;
+  }
+
   const ok = renderAuthStatus(null, auth);
   if (!ok) return null;
-  if (reportCode && !auth.has_all_reports && !(auth.reports || []).includes(reportCode)) {
+
+  if (!canAccessReport(auth, reportCode)) {
     renderAuthStatus(null, {
       ...auth,
       allowed: false,
