@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintain สิทธิ์รายงาน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/landing.css" />
+  <link rel="stylesheet" href="/static/maintain.css" />
+</head>
+<body class="maintain-page">
+  {% include "partials/nav.html" %}
+
+  <div class="layout maintain-layout">
+    <header class="maintain-hero">
+      <div class="maintain-hero-copy">
+        <a id="back-home" class="maintain-back" href="/">← ศูนย์รวม Dashboard</a>
+        <p class="eyebrow">Administration</p>
+        <h1>Maintain สิทธิ์รายงาน</h1>
+        <p class="subtitle">กำหนดสิทธิ์การเข้าถึงแต่ละรายงาน · ใช้ได้เฉพาะ DEPT=ALL และ BR=ALL</p>
+      </div>
+      <div class="maintain-hero-aside">
+        <div class="maintain-stat">
+          <span class="maintain-stat-label">รายการสิทธิ์</span>
+          <strong id="stat-rows">—</strong>
+        </div>
+        <div class="maintain-stat">
+          <span class="maintain-stat-label">จำนวนพนักงาน</span>
+          <strong id="stat-people">—</strong>
+        </div>
+      </div>
+    </header>
+
+    <section class="maintain-legend" aria-label="รหัสรายงาน">
+      <article class="maintain-legend-card">
+        <span class="maintain-pill">e-leave</span>
+        <div>
+          <strong>Dashboard E-Leave</strong>
+          <p>อนุมัติลา / OT</p>
+        </div>
+      </article>
+      <article class="maintain-legend-card">
+        <span class="maintain-pill">time-attendance</span>
+        <div>
+          <strong>Time Attendance</strong>
+          <p>สถิติลา · OT · มาสาย</p>
+        </div>
+      </article>
+      <article class="maintain-legend-card maintain-legend-card--hidden">
+        <span class="maintain-pill maintain-pill--admin">emc-report</span>
+        <div>
+          <strong>HR Monthly Performance</strong>
+          <p>ซ่อนจาก landing · เฉพาะ ALL เห็นเมนู</p>
+        </div>
+      </article>
+      <article class="maintain-legend-card">
+        <span class="maintain-pill maintain-pill--all">ALL</span>
+        <div>
+          <strong>ทุกรายงาน</strong>
+          <p>เปิดครบทุกโมดูล</p>
+        </div>
+      </article>
+    </section>
+
+    <div class="maintain-grid">
+      <aside class="maintain-side">
+        <section class="card maintain-panel">
+          <div class="maintain-panel-head">
+            <h2>เพิ่มสิทธิ์</h2>
+            <p>เลือกพนักงานแล้วระบุรายงานที่อนุญาต</p>
+          </div>
+          <form id="acl-form" class="maintain-form">
+            <label>
+              <span>รหัสพนักงาน (PRS_NO)</span>
+              <input id="prs-input" list="prs-list" name="prs_no" autocomplete="off" required placeholder="เช่น 57110047" />
+              <datalist id="prs-list"></datalist>
+            </label>
+            <label>
+              <span>รายงาน</span>
+              <select id="report-select" name="report_code" required></select>
+            </label>
+            <button type="submit" class="btn btn-primary maintain-submit">เพิ่มสิทธิ์</button>
+          </form>
+          <p id="form-status" class="maintain-status" hidden></p>
+        </section>
+
+        <section class="card maintain-panel maintain-rules">
+          <h2>กฎการทำงาน</h2>
+          <ul>
+            <li>ยัง<strong>ไม่มีแถว</strong> → เห็นทุกรายงาน (ค่าเริ่มต้น)</li>
+            <li><strong>มีแถวแล้ว</strong> → เห็นเฉพาะที่ระบุ</li>
+            <li>ใส่ <code>ALL</code> → เปิดทุกโมดูลรวม EMC</li>
+            <li>เมนูที่ซ่อนบน landing โชว์เฉพาะสิทธิ์ ALL</li>
+          </ul>
+        </section>
+      </aside>
+
+      <section class="card maintain-panel maintain-list-panel">
+        <div class="maintain-table-head">
+          <div>
+            <h2>รายการสิทธิ์</h2>
+            <p id="list-summary">กำลังโหลด...</p>
+          </div>
+          <label class="maintain-filter">
+            <span>ค้นหา PRS_NO</span>
+            <input id="filter-prs" type="search" placeholder="พิมพ์รหัสพนักงาน" />
+          </label>
+        </div>
+        <div id="acl-list" class="maintain-acl-list">
+          <div class="maintain-empty">กำลังโหลด...</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/static/maintain.js?v=2"></script>
+</body>
+</html>

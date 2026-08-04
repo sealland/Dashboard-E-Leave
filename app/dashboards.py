@@ -19,6 +19,7 @@ class DashboardItem(TypedDict):
     wbdt: int | None
     doc_kind: str | None
     subtitle: str
+    show_on_landing: bool
 
 
 DASHBOARDS: list[DashboardItem] = [
@@ -34,6 +35,7 @@ DASHBOARDS: list[DashboardItem] = [
         "template": "dashboards/page.html",
         "wbdt": None,
         "doc_kind": "all",
+        "show_on_landing": True,
     },
     {
         "id": "time-attendance",
@@ -47,6 +49,7 @@ DASHBOARDS: list[DashboardItem] = [
         "template": None,
         "wbdt": None,
         "doc_kind": None,
+        "show_on_landing": True,
     },
     {
         "id": "emc-report",
@@ -60,6 +63,7 @@ DASHBOARDS: list[DashboardItem] = [
         "template": None,
         "wbdt": None,
         "doc_kind": None,
+        "show_on_landing": False,
     },
 ]
 

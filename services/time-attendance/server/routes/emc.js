@@ -1,18 +1,24 @@
 import { Router } from "express";
 import { getPool, sql } from "../db.js";
-import { buildAuthSql, getAuthorization } from "../auth.js";
+import { buildAuthSql, canAccessReport, getAuthorization, REPORT_EMC } from "../auth.js";
 
 const router = Router();
 
 /**
- * EMC auth gate. Scope today = DEPT/BR from ZHR_AUTHORIZATION.
- * Next: person-level allow-list for selected EMC viewers (filter EMP_KEY / PRS_NO).
+ * EMC auth gate. Scope = DEPT/BR from ZHR_AUTHORIZATION + report ACL.
  */
 async function requireEmcAuth(req, res) {
   const auth = await getAuthorization(req.query.c);
   if (!auth.allowed) {
     res.status(403).json({
       error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+      auth,
+    });
+    return null;
+  }
+  if (!canAccessReport(auth, REPORT_EMC)) {
+    res.status(403).json({
+      error: "ไม่มีสิทธิ์เข้าใช้งานรายงานนี้ (emc-report)",
       auth,
     });
     return null;

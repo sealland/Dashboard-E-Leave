@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getPool, sql } from "../db.js";
-import { buildAuthSql, getAuthorization } from "../auth.js";
+import { buildAuthSql, getAuthorization, requireReportAuth, REPORT_TIME_ATTENDANCE } from "../auth.js";
 
 const router = Router();
 
@@ -73,14 +73,8 @@ router.get("/attendance", async (req, res) => {
   }
 
   try {
-    const auth = await getAuthorization(c);
-    if (!auth.allowed) {
-      res.status(403).json({
-        error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
-        auth,
-        rows: [],
-        meta: { from, to, count: 0, auth },
-      });
+    const auth = await requireReportAuth(req, res, REPORT_TIME_ATTENDANCE, { c });
+    if (!auth) {
       return;
     }
     const pool = await getPool();

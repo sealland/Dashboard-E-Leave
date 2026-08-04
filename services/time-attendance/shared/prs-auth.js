@@ -149,9 +149,18 @@ function hideAuthBlockedOverlay() {
   if (overlay) overlay.hidden = true;
 }
 
-/** Returns auth if allowed, otherwise null and shows blocked UI. */
-export async function requireAuthorization() {
+/** Returns auth if allowed (and report if specified), otherwise null and shows blocked UI. */
+export async function requireAuthorization(reportCode = null) {
   const auth = await fetchAuthorization();
   const ok = renderAuthStatus(null, auth);
-  return ok ? auth : null;
+  if (!ok) return null;
+  if (reportCode && !auth.has_all_reports && !(auth.reports || []).includes(reportCode)) {
+    renderAuthStatus(null, {
+      ...auth,
+      allowed: false,
+      message: `ไม่มีสิทธิ์เข้าใช้งานรายงานนี้ (${reportCode})`,
+    });
+    return null;
+  }
+  return auth;
 }

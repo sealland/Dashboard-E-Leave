@@ -1,4 +1,4 @@
-"""Authorization from dbo.ZHR_AUTHORIZATION (PRS_NO → DEPT_CODE / BR_CODE)."""
+"""Authorization from dbo.ZHR_AUTHORIZATION (+ optional report ACL)."""
 
 from __future__ import annotations
 
@@ -7,14 +7,26 @@ from typing import Any, Optional
 
 from db.connection import execute_query
 
+# Report codes align with app.dashboards.DASHBOARDS[].id
+REPORT_E_LEAVE = "e-leave"
+REPORT_TIME_ATTENDANCE = "time-attendance"
+REPORT_EMC = "emc-report"
+ALL_REPORT_CODES: tuple[str, ...] = (
+    REPORT_E_LEAVE,
+    REPORT_TIME_ATTENDANCE,
+    REPORT_EMC,
+)
+
 
 @dataclass
 class Authorization:
     prs_no: str
     departments: list[str] = field(default_factory=list)
     branches: list[str] = field(default_factory=list)
+    reports: list[str] = field(default_factory=list)
     has_all_dept: bool = False
     has_all_branch: bool = False
+    has_all_reports: bool = True  # True = no explicit report rows (legacy)
 
     @property
     def active(self) -> bool:
@@ -28,15 +40,32 @@ class Authorization:
             return True
         return len(self.departments) > 0
 
+    def can_access_report(self, report_code: str) -> bool:
+        if not self.allowed:
+            return False
+        code = str(report_code or "").strip()
+        if not code:
+            return False
+        if self.has_all_reports:
+            return True
+        return code in self.reports
+
+    @property
+    def can_maintain(self) -> bool:
+        """Maintain ACL: only DEPT=ALL and BR=ALL."""
+        return self.allowed and self.has_all_dept and self.has_all_branch
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "prs_no": self.prs_no or None,
             "departments": self.departments,
             "branches": self.branches,
-            # Reserved for EMC person-level allow-list (future)
+            "reports": list(ALL_REPORT_CODES) if self.has_all_reports else list(self.reports),
             "employees": [],
             "has_all_dept": self.has_all_dept,
             "has_all_branch": self.has_all_branch,
+            "has_all_reports": self.has_all_reports,
+            "can_maintain": self.can_maintain,
             "active": self.active,
             "allowed": self.allowed,
             "message": (
@@ -62,7 +91,6 @@ def _cell(row: dict[str, Any], *names: str) -> str:
         text = str(value).strip()
         if text.lower() in {"", "none", "nan"}:
             continue
-        # Avoid float artifacts like 56070033.0 from numeric columns
         if text.endswith(".0") and text.replace(".", "", 1).isdigit():
             text = text[:-2]
         return text
@@ -73,11 +101,57 @@ def _is_all(value: str) -> bool:
     return value.upper() == "ALL"
 
 
+def _load_report_codes(prs_no: str) -> tuple[bool, list[str]]:
+    """
+    Load report whitelist for PRS_NO from ZHR_AUTHORIZATION_REPORT.
+
+    Returns:
+      (has_all_reports, report_codes)
+      has_all_reports=True when table missing or no rows (backward compatible).
+    """
+    try:
+        df = execute_query(
+            """
+            SELECT
+                LTRIM(RTRIM(CAST(REPORT_CODE AS NVARCHAR(50)))) AS REPORT_CODE
+            FROM dbo.ZHR_AUTHORIZATION_REPORT
+            WHERE LTRIM(RTRIM(CAST(PRS_NO AS NVARCHAR(50)))) = :prs_no
+               OR (
+                    TRY_CAST(PRS_NO AS BIGINT) IS NOT NULL
+                    AND TRY_CAST(:prs_no_num AS BIGINT) IS NOT NULL
+                    AND TRY_CAST(PRS_NO AS BIGINT) = TRY_CAST(:prs_no_num AS BIGINT)
+               )
+            """,
+            {"prs_no": prs_no, "prs_no_num": prs_no},
+        )
+    except Exception:
+        # Table not created yet → treat as full report access
+        return True, list(ALL_REPORT_CODES)
+
+    if df.empty:
+        return True, list(ALL_REPORT_CODES)
+
+    codes: list[str] = []
+    seen: set[str] = set()
+    for row in df.to_dict(orient="records"):
+        code = _cell(row, "REPORT_CODE", "report_code")
+        if not code:
+            continue
+        if _is_all(code):
+            return True, list(ALL_REPORT_CODES)
+        if code not in seen:
+            seen.add(code)
+            codes.append(code)
+    if not codes:
+        return True, list(ALL_REPORT_CODES)
+    return False, codes
+
+
 def get_authorization(prs_no: Optional[str]) -> Authorization:
     """Load auth scope for PRS_NO. Empty prs_no = deny (ต้องระบุ ?c=)."""
     code = str(prs_no or "").strip()
     if not code:
-        return Authorization(prs_no="")
+        return Authorization(prs_no="", has_all_reports=False, reports=[])
 
     df = execute_query(
         """
@@ -98,6 +172,8 @@ def get_authorization(prs_no: Optional[str]) -> Authorization:
 
     auth = Authorization(prs_no=code)
     if df.empty:
+        auth.has_all_reports = False
+        auth.reports = []
         return auth
 
     dept_seen: set[str] = set()
@@ -118,7 +194,16 @@ def get_authorization(prs_no: Optional[str]) -> Authorization:
                 branch_seen.add(branch)
                 auth.branches.append(branch)
 
+    has_all_reports, reports = _load_report_codes(code)
+    auth.has_all_reports = has_all_reports
+    auth.reports = reports
     return auth
+
+
+def can_access_report(auth: Optional[Authorization], report_code: str) -> bool:
+    if not auth:
+        return False
+    return auth.can_access_report(report_code)
 
 
 def _depts_for_branches(branches: list[str]) -> list[str]:
@@ -173,7 +258,7 @@ def effective_departments(auth: Optional[Authorization]) -> Optional[list[str]]:
             return []
 
     if auth.has_all_dept:
-        return branch_depts  # None = all; else depts under allowed branches
+        return branch_depts
 
     if not auth.departments:
         return []

@@ -1289,7 +1289,7 @@ function init() {
 
 ensureAuthInUrl();
 preserveAuthInLinks();
-requireAuthorization().then((auth) => {
+requireAuthorization("emc-report").then((auth) => {
   if (!auth) return;
   init();
 });

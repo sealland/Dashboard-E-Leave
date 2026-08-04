@@ -1,5 +1,14 @@
 import { getPool, sql } from "./db.js";
 
+export const REPORT_E_LEAVE = "e-leave";
+export const REPORT_TIME_ATTENDANCE = "time-attendance";
+export const REPORT_EMC = "emc-report";
+export const ALL_REPORT_CODES = [
+  REPORT_E_LEAVE,
+  REPORT_TIME_ATTENDANCE,
+  REPORT_EMC,
+];
+
 function isAll(value) {
   return String(value || "").trim().toUpperCase() === "ALL";
 }
@@ -11,8 +20,53 @@ function normalizeCode(value) {
   return text;
 }
 
+async function loadReportCodes(prsNo) {
+  try {
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input("prs_no", sql.NVarChar(50), prsNo)
+      .query(`
+        SELECT
+          LTRIM(RTRIM(CAST(REPORT_CODE AS NVARCHAR(50)))) AS REPORT_CODE
+        FROM dbo.ZHR_AUTHORIZATION_REPORT
+        WHERE LTRIM(RTRIM(CAST(PRS_NO AS NVARCHAR(50)))) = @prs_no
+           OR (
+                TRY_CAST(PRS_NO AS BIGINT) IS NOT NULL
+                AND TRY_CAST(@prs_no AS BIGINT) IS NOT NULL
+                AND TRY_CAST(PRS_NO AS BIGINT) = TRY_CAST(@prs_no AS BIGINT)
+           )
+      `);
+
+    if (!result.recordset.length) {
+      return { hasAllReports: true, reports: [...ALL_REPORT_CODES] };
+    }
+
+    const reports = [];
+    const seen = new Set();
+    for (const row of result.recordset) {
+      const code = normalizeCode(row.REPORT_CODE);
+      if (!code) continue;
+      if (isAll(code)) {
+        return { hasAllReports: true, reports: [...ALL_REPORT_CODES] };
+      }
+      if (!seen.has(code)) {
+        seen.add(code);
+        reports.push(code);
+      }
+    }
+    if (!reports.length) {
+      return { hasAllReports: true, reports: [...ALL_REPORT_CODES] };
+    }
+    return { hasAllReports: false, reports };
+  } catch {
+    // Table not created yet → full report access
+    return { hasAllReports: true, reports: [...ALL_REPORT_CODES] };
+  }
+}
+
 /**
- * Load authorization scope from dbo.ZHR_AUTHORIZATION.
+ * Load authorization scope from dbo.ZHR_AUTHORIZATION (+ optional report ACL).
  * Empty `c` / PRS_NO → deny (ต้องระบุ ?c=).
  */
 export async function getAuthorization(prsNo) {
@@ -22,9 +76,11 @@ export async function getAuthorization(prsNo) {
       prs_no: null,
       departments: [],
       branches: [],
+      reports: [],
       employees: [],
       has_all_dept: false,
       has_all_branch: false,
+      has_all_reports: false,
       active: false,
       allowed: false,
       message: "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
@@ -75,19 +131,31 @@ export async function getAuthorization(prsNo) {
   }
 
   const allowed = hasAllDept || departments.length > 0;
+  const { hasAllReports, reports } = allowed
+    ? await loadReportCodes(code)
+    : { hasAllReports: false, reports: [] };
 
   return {
     prs_no: code,
     departments,
     branches,
-    // Reserved for EMC person-level allow-list (future)
+    reports: hasAllReports ? [...ALL_REPORT_CODES] : reports,
     employees: [],
     has_all_dept: hasAllDept,
     has_all_branch: hasAllBranch,
+    has_all_reports: hasAllReports,
     active: true,
     allowed,
     message: allowed ? null : `ไม่พบสิทธิ์ใน ZHR_AUTHORIZATION สำหรับ ${code}`,
   };
+}
+
+export function canAccessReport(auth, reportCode) {
+  if (!auth?.allowed) return false;
+  const code = String(reportCode || "").trim();
+  if (!code) return false;
+  if (auth.has_all_reports) return true;
+  return (auth.reports || []).includes(code);
 }
 
 /**
@@ -129,4 +197,25 @@ export function buildAuthSql(request, auth, { alias = "", includeBranch = true }
   }
 
   return parts.length ? ` AND ${parts.join(" AND ")}` : "";
+}
+
+/** Express-style gate: returns auth or sends 403 and returns null. */
+export async function requireReportAuth(req, res, reportCode, { c = null } = {}) {
+  const prs = c ?? req.query?.c;
+  const auth = await getAuthorization(prs);
+  if (!auth.allowed) {
+    res.status(403).json({
+      error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
+      auth,
+    });
+    return null;
+  }
+  if (!canAccessReport(auth, reportCode)) {
+    res.status(403).json({
+      error: `ไม่มีสิทธิ์เข้าใช้งานรายงานนี้ (${reportCode})`,
+      auth,
+    });
+    return null;
+  }
+  return auth;
 }

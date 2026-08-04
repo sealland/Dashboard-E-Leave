@@ -89,9 +89,19 @@ a.landing-item:hover {
   white-space: nowrap;
 }
 
-.landing-item-badge--ready {
-  color: #15803d;
-  background: rgba(21, 128, 61, 0.12);
+.landing-item-badge--admin {
+  color: #1d4ed8;
+  background: rgba(29, 78, 216, 0.12);
+}
+
+.landing-item--admin {
+  border-color: rgba(29, 78, 216, 0.28);
+  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
+}
+
+.landing-item-icon--admin {
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
 }
 
 .landing-item-badge--scaffold {

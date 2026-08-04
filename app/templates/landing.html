@@ -24,7 +24,6 @@
 
     <section class="landing-list" aria-label="รายการ Dashboard">
       {% for item in dashboards %}
-      {% if item.id != "emc-report" %}
       {% if item.url and not item.coming_soon %}
       <a class="landing-item card landing-item--active" href="{{ item.url }}">
       {% else %}
@@ -66,6 +65,8 @@
               <span class="landing-item-badge">เร็วๆ นี้</span>
             {% elif item.status == "scaffold" %}
               <span class="landing-item-badge landing-item-badge--scaffold">ยังไม่พร้อมใช้งาน</span>
+            {% elif item.hidden_default %}
+              <span class="landing-item-badge landing-item-badge--admin">เฉพาะ ALL</span>
             {% else %}
               <span class="landing-item-badge landing-item-badge--ready">พร้อมใช้งาน</span>
             {% endif %}
@@ -82,8 +83,26 @@
       {% else %}
       </article>
       {% endif %}
-      {% endif %}
       {% endfor %}
+
+    {% if can_maintain and maintain_url %}
+    <a class="landing-item card landing-item--active landing-item--admin" href="{{ maintain_url }}">
+      <div class="landing-item-icon landing-item-icon--admin" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+          <path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7l8-4z"/>
+          <path d="M9.5 12l1.8 1.8L15 10.2"/>
+        </svg>
+      </div>
+      <div class="landing-item-body">
+        <div class="landing-item-head">
+          <h2 class="landing-item-title">Maintain สิทธิ์รายงาน</h2>
+          <span class="landing-item-badge landing-item-badge--admin">เฉพาะ ALL</span>
+        </div>
+        <p class="landing-item-desc">กำหนดว่าพนักงานแต่ละคนเข้าดูรายงานใดได้ · รวมโมดูลที่ซ่อนจากผู้ใช้ทั่วไป</p>
+      </div>
+      <span class="landing-item-action btn btn-primary">เปิด</span>
+    </a>
+    {% endif %}
     </section>
   </div>
   <script>

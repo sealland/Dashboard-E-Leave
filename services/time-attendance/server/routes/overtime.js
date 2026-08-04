@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getPool, sql } from "../db.js";
 import { OT_DF_CODES } from "../../shared/df-code-map.js";
-import { buildAuthSql, getAuthorization } from "../auth.js";
+import { buildAuthSql, requireReportAuth, REPORT_TIME_ATTENDANCE } from "../auth.js";
 
 const router = Router();
 
@@ -30,14 +30,8 @@ router.get("/overtime", async (req, res) => {
   const codes = dfCode && dfCode !== "all" ? [String(dfCode)] : [...OT_DF_CODES];
 
   try {
-    const auth = await getAuthorization(c);
-    if (!auth.allowed) {
-      res.status(403).json({
-        error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
-        auth,
-        rows: [],
-        meta: { from, to, count: 0, auth },
-      });
+    const auth = await requireReportAuth(req, res, REPORT_TIME_ATTENDANCE, { c });
+    if (!auth) {
       return;
     }
     const pool = await getPool();
@@ -105,15 +99,8 @@ router.get("/overtime/pp-productivity", async (req, res) => {
   const codes = dfCode && dfCode !== "all" ? [String(dfCode)] : [...OT_DF_CODES];
 
   try {
-    const auth = await getAuthorization(c);
-    if (!auth.allowed) {
-      res.status(403).json({
-        error: auth.message || "ไม่พบสิทธิ์ — กรุณาระบุรหัสพนักงาน (?c=PRS_NO)",
-        auth,
-        months: [],
-        average: null,
-        meta: { from, to, auth },
-      });
+    const auth = await requireReportAuth(req, res, REPORT_TIME_ATTENDANCE, { c });
+    if (!auth) {
       return;
     }
     const pool = await getPool();

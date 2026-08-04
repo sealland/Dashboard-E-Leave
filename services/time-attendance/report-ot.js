@@ -1090,7 +1090,7 @@ function bindEvents() {
 bindEvents();
 setDefaults();
 preserveAuthInLinks();
-requireAuthorization().then((auth) => {
+requireAuthorization("time-attendance").then((auth) => {
   if (!auth) return;
   loadData();
 });

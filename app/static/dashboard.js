@@ -229,6 +229,19 @@ function renderAuthBanner(auth) {
     return false;
   }
 
+  const canELeave =
+    auth.has_all_reports ||
+    (auth.reports || []).includes("e-leave") ||
+    (auth.reports || []).includes("ALL");
+  if (!canELeave) {
+    const message = "ไม่มีสิทธิ์เข้าใช้งานรายงานนี้ (e-leave)";
+    el.textContent = message;
+    el.className = `${baseClass} auth-banner--denied`;
+    document.body.classList.add("auth-blocked");
+    clearDashboardView(message);
+    return false;
+  }
+
   document.body.classList.remove("auth-blocked");
   const deptText = auth.has_all_dept ? "ทุกแผนก" : `${auth.departments.length} แผนก`;
   const branchText = auth.has_all_branch

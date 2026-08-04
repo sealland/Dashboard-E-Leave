@@ -9,9 +9,17 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 
-from app.auth import Authorization, get_authorization
+from app.auth import Authorization, can_access_report, get_authorization, REPORT_E_LEAVE
 from app.dashboards import DASHBOARDS, get_dashboard, get_dashboard_config_json, get_dashboard_ui
+from app.report_acl import (
+    add_report_acl,
+    delete_report_acl,
+    list_authorization_users,
+    list_report_acl,
+    list_report_options,
+)
 from app.requirements import NEXT_DASHBOARD_REQUIREMENTS
 from app.queries import get_alerts, get_by_dept, get_by_type, get_filter_options, get_records, get_summary
 from app.time_attendance_proxy import proxy_time_attendance
@@ -21,6 +29,11 @@ APP_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="HR Approve", version="1.0.0")
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=APP_DIR / "templates")
+
+
+class ReportAclBody(BaseModel):
+    prs_no: str = Field(min_length=1)
+    report_code: str = Field(min_length=1)
 
 
 def _with_auth_query(url: str | None, c: Optional[str]) -> str | None:
@@ -36,16 +49,34 @@ def _with_auth_query(url: str | None, c: Optional[str]) -> str | None:
     return f"{url}{sep}c={quote(code, safe='')}"
 
 
-def _nav_context(active_dashboard: str | None = None, c: Optional[str] = None) -> dict:
+def _nav_context(
+    active_dashboard: str | None = None,
+    c: Optional[str] = None,
+    auth: Optional[Authorization] = None,
+) -> dict:
     code = (c or "").strip() or None
-    dashboards = [
-        {**item, "url": _with_auth_query(item.get("url"), code)}
-        for item in DASHBOARDS
-    ]
+    can_maintain = bool(auth and auth.can_maintain)
+    dashboards = []
+    for item in DASHBOARDS:
+        hidden_default = not item.get("show_on_landing", True)
+        # Hidden modules (e.g. EMC) visible only to DEPT=ALL · BR=ALL
+        if hidden_default and not can_maintain:
+            continue
+        if auth and auth.active and auth.allowed and not can_access_report(auth, item["id"]):
+            continue
+        dashboards.append(
+            {
+                **item,
+                "url": _with_auth_query(item.get("url"), code),
+                "hidden_default": hidden_default,
+            }
+        )
     return {
         "dashboards": dashboards,
         "active_dashboard": active_dashboard,
         "auth_c": code,
+        "can_maintain": can_maintain,
+        "maintain_url": _with_auth_query("/maintain/reports", code) if can_maintain else None,
     }
 
 
@@ -64,12 +95,33 @@ def _require_auth(c: Optional[str]) -> Authorization:
     return auth
 
 
+def _require_report(c: Optional[str], report_code: str) -> Authorization:
+    auth = _require_auth(c)
+    if not can_access_report(auth, report_code):
+        raise HTTPException(
+            status_code=403,
+            detail=f"ไม่มีสิทธิ์เข้าใช้งานรายงานนี้ ({report_code})",
+        )
+    return auth
+
+
+def _require_maintainer(c: Optional[str]) -> Authorization:
+    auth = _require_auth(c)
+    if not auth.can_maintain:
+        raise HTTPException(
+            status_code=403,
+            detail="หน้า Maintain ใช้ได้เฉพาะผู้ที่มีสิทธิ์ DEPT=ALL และ BR=ALL",
+        )
+    return auth
+
+
 def _dashboard_page_context(dashboard_id: str, c: Optional[str] = None) -> dict:
     dashboard = get_dashboard(dashboard_id)
     if not dashboard or not dashboard.get("template"):
         raise HTTPException(status_code=404, detail="Dashboard not found")
+    auth = _auth_from_c(c) if c else None
     return {
-        **_nav_context(dashboard_id, c=c),
+        **_nav_context(dashboard_id, c=c, auth=auth),
         "dashboard": dashboard,
         "ui": get_dashboard_ui(dashboard_id),
         "dashboard_config": get_dashboard_config_json(dashboard_id),
@@ -79,16 +131,19 @@ def _dashboard_page_context(dashboard_id: str, c: Optional[str] = None) -> dict:
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     c = request.query_params.get("c")
+    auth = _auth_from_c(c) if c else None
     return templates.TemplateResponse(
         request,
         "landing.html",
-        {"request": request, **_nav_context(c=c)},
+        {"request": request, **_nav_context(c=c, auth=auth)},
     )
 
 
 @app.get("/dashboard/{dashboard_id}", response_class=HTMLResponse)
 async def dashboard_page(request: Request, dashboard_id: str):
     c = request.query_params.get("c")
+    if dashboard_id == "e-leave":
+        _require_report(c, REPORT_E_LEAVE)
     ctx = _dashboard_page_context(dashboard_id, c=c)
     dashboard = ctx["dashboard"]
     if dashboard["template"] == "dashboards/requirements.html":
@@ -108,6 +163,65 @@ async def dashboard_page(request: Request, dashboard_id: str):
     )
 
 
+@app.get("/maintain/reports", response_class=HTMLResponse)
+async def maintain_reports_page(request: Request):
+    c = request.query_params.get("c")
+    auth = _require_maintainer(c)
+    return templates.TemplateResponse(
+        request,
+        "maintain_reports.html",
+        {"request": request, **_nav_context(c=c, auth=auth)},
+    )
+
+
+@app.get("/api/admin/report-acl/meta")
+async def api_admin_report_acl_meta(c: Optional[str] = None):
+    auth = _require_maintainer(c)
+    return {
+        "reports": list_report_options(),
+        "users": list_authorization_users(),
+        "auth": auth.to_dict(),
+    }
+
+
+@app.get("/api/admin/report-acl")
+async def api_admin_report_acl_list(
+    c: Optional[str] = None,
+    prs_no: Optional[str] = None,
+):
+    auth = _require_maintainer(c)
+    return {
+        "rows": list_report_acl(prs_no),
+        "auth": auth.to_dict(),
+    }
+
+
+@app.post("/api/admin/report-acl")
+async def api_admin_report_acl_add(body: ReportAclBody, c: Optional[str] = None):
+    auth = _require_maintainer(c)
+    try:
+        row = add_report_acl(body.prs_no, body.report_code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "row": row, "auth": auth.to_dict()}
+
+
+@app.delete("/api/admin/report-acl")
+async def api_admin_report_acl_delete(
+    c: Optional[str] = None,
+    prs_no: Optional[str] = None,
+    report_code: Optional[str] = None,
+):
+    auth = _require_maintainer(c)
+    try:
+        deleted = delete_report_acl(prs_no or "", report_code or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="ไม่พบรายการที่จะลบ")
+    return {"ok": True, "auth": auth.to_dict()}
+
+
 @app.get("/api/auth")
 async def api_auth(c: Optional[str] = None):
     auth = _auth_from_c(c)
@@ -123,7 +237,7 @@ async def api_summary(
     doc_kind: Optional[str] = None,
     c: Optional[str] = None,
 ):
-    auth = _require_auth(c)
+    auth = _require_report(c, REPORT_E_LEAVE)
     return {
         "summary": get_summary(
             date_from=date_from,
@@ -165,7 +279,7 @@ async def api_records(
     limit: int = Query(500, ge=1, le=2000),
     c: Optional[str] = None,
 ):
-    auth = _require_auth(c)
+    auth = _require_report(c, REPORT_E_LEAVE)
     return get_records(
         date_from=date_from,
         date_to=date_to,
@@ -191,7 +305,7 @@ async def api_alerts(
     crit_hr: int = Query(14, ge=1),
     c: Optional[str] = None,
 ):
-    auth = _require_auth(c)
+    auth = _require_report(c, REPORT_E_LEAVE)
     return get_alerts(
         date_from=date_from,
         date_to=date_to,
@@ -207,7 +321,7 @@ async def api_alerts(
 @app.get("/api/filters")
 async def api_filters(c: Optional[str] = None):
     auth = _auth_from_c(c)
-    if not auth.allowed:
+    if not auth.allowed or not can_access_report(auth, REPORT_E_LEAVE):
         return {
             "departments": [],
             "types": [],
