@@ -222,6 +222,27 @@ def can_access_report(auth: Optional[Authorization], report_code: str) -> bool:
     return auth.can_access_report(report_code)
 
 
+def can_see_dashboard(
+    auth: Optional[Authorization],
+    report_code: str,
+    *,
+    hidden_default: bool = False,
+) -> bool:
+    """Whether a dashboard tile should appear on the landing hub."""
+    if hidden_default:
+        if not auth or not auth.active or not auth.allowed:
+            return False
+        if not can_access_report(auth, report_code):
+            return False
+        # Legacy: no REPORT rows → all reports, but hidden modules stay ALL-scope only
+        if not auth.is_all_scope and auth.has_all_reports:
+            return False
+        return True
+    if auth and auth.active and auth.allowed and not can_access_report(auth, report_code):
+        return False
+    return True
+
+
 def _depts_for_branches(branches: list[str]) -> list[str]:
     """Map BR_CODE → DEPT_CODE via employee master (ZHR_WEBAPP has no BR_CODE)."""
     if not branches:

@@ -220,6 +220,16 @@ function laborTotalOf(point) {
   return (Number(point?.salary) || 0) + (Number(point?.ot) || 0);
 }
 
+/** บาท/ตัน: ค่า > 0 ต้องไม่ถูกปัดเป็น 0 — ใช้ทศนิยมตามขนาดค่า */
+function formatPerTonLabel(value) {
+  if (!Number.isFinite(value)) return "-";
+  if (value <= 0) return formatNumber(0, 0);
+  if (value < 0.01) return formatNumber(value, 3);
+  if (value < 1) return formatNumber(value, 2);
+  if (value < 100) return formatNumber(value, 1);
+  return formatNumber(value, 0);
+}
+
 function renderLaborTotalLineChart(title, series, monthKeys) {
   if (!series?.length || !monthKeys?.length) {
     return `
@@ -351,7 +361,7 @@ function renderLaborRatioChart(title, series, monthKeys) {
     const y = yOf(tick);
     return `
       <line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" class="emc-labor-grid"></line>
-      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatNumber(tick, 0)}</text>`;
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatPerTonLabel(tick)}</text>`;
   }).join("");
 
   const xLabels = labels
@@ -377,12 +387,12 @@ function renderLaborRatioChart(title, series, monthKeys) {
         .join(" ");
       const dots = coords
         .map((c) => {
-          const tip = `${item.name} ${c.point.month}: ${formatNumber(c.point.laborPerTon, 0)} บาท/ตัน`;
+          const tip = `${item.name} ${c.point.month}: ${formatPerTonLabel(c.point.laborPerTon)} บาท/ตัน`;
           return `
             <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1" class="emc-labor-series-dot">
               <title>${escapeHtml(tip)}</title>
             </circle>
-            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatNumber(c.point.laborPerTon, 0)}</text>`;
+            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatPerTonLabel(c.point.laborPerTon)}</text>`;
         })
         .join("");
       // Invisible wider stroke for easier click
@@ -454,7 +464,7 @@ function renderOtPerTonChart(title, series, monthKeys) {
     const y = yOf(tick);
     return `
       <line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" class="emc-labor-grid"></line>
-      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatNumber(tick, 0)}</text>`;
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" class="emc-labor-axis">${formatPerTonLabel(tick)}</text>`;
   }).join("");
 
   const xLabels = labels
@@ -479,12 +489,12 @@ function renderOtPerTonChart(title, series, monthKeys) {
         .join(" ");
       const dots = coords
         .map((c) => {
-          const tip = `${item.name} ${c.point.month}: ${formatNumber(c.value, 0)} OT บาท/ตัน (OT ${formatNumber(c.point.ot, 0)} · ตัน ${formatNumber(c.point.ton, 1)})`;
+          const tip = `${item.name} ${c.point.month}: ${formatPerTonLabel(c.value)} OT บาท/ตัน (OT ${formatNumber(c.point.ot, 0)} · ตัน ${formatNumber(c.point.ton, 1)})`;
           return `
             <circle cx="${c.x}" cy="${c.y}" r="3.5" fill="${color}" stroke="#fff" stroke-width="1" class="emc-labor-series-dot">
               <title>${escapeHtml(tip)}</title>
             </circle>
-            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatNumber(c.value, 0)}</text>`;
+            <text x="${c.x}" y="${Math.max(pad.top + 10, c.y - 8)}" text-anchor="middle" class="emc-labor-value-label" fill="${color}">${formatPerTonLabel(c.value)}</text>`;
         })
         .join("");
       return `

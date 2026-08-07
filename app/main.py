@@ -11,10 +11,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from app.auth import Authorization, can_access_report, get_authorization, REPORT_E_LEAVE
+from app.auth import Authorization, can_access_report, can_see_dashboard, get_authorization, REPORT_E_LEAVE
 from app.dashboards import DASHBOARDS, get_dashboard, get_dashboard_config_json, get_dashboard_ui
 from app.report_acl import (
     add_report_acl,
+    add_user_access,
     delete_report_acl,
     list_authorization_users,
     list_report_acl,
@@ -41,6 +42,13 @@ class ZhrAuthorizationCreateBody(BaseModel):
     prsNo: str = Field(min_length=1)
     deptCode: str = Field(min_length=1)
     brCode: Optional[str] = None
+
+
+class AccessCreateBody(BaseModel):
+    prsNo: str = Field(min_length=1)
+    deptCode: str = Field(min_length=1)
+    brCode: Optional[str] = None
+    reportCode: str = Field(min_length=1)
 
 
 class ZhrAuthorizationUpdateBody(BaseModel):
@@ -77,14 +85,10 @@ def _nav_context(
 ) -> dict:
     code = (c or "").strip() or None
     can_maintain = bool(auth and auth.can_maintain)
-    is_all_scope = bool(auth and auth.is_all_scope)
     dashboards = []
     for item in DASHBOARDS:
         hidden_default = not item.get("show_on_landing", True)
-        # Hidden modules (e.g. EMC) visible to DEPT=ALL · BR=ALL (including executives)
-        if hidden_default and not is_all_scope:
-            continue
-        if auth and auth.active and auth.allowed and not can_access_report(auth, item["id"]):
+        if not can_see_dashboard(auth, item["id"], hidden_default=hidden_default):
             continue
         dashboards.append(
             {
@@ -226,6 +230,19 @@ async def api_admin_report_acl_add(body: ReportAclBody, c: Optional[str] = None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "row": row, "auth": auth.to_dict()}
+
+
+@app.post("/api/admin/access")
+async def api_admin_access_add(body: AccessCreateBody, c: Optional[str] = None):
+    auth = _require_maintainer(c)
+    return _zhr_admin_call(
+        add_user_access,
+        prs_no=body.prsNo,
+        dept_code=body.deptCode,
+        br_code=body.brCode,
+        report_code=body.reportCode,
+        changed_by=auth.prs_no,
+    )
 
 
 @app.delete("/api/admin/report-acl")

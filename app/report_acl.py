@@ -149,3 +149,76 @@ def delete_report_acl(prs_no: str, report_code: str) -> bool:
             {"prs_no": prs, "report_code": report},
         )
         return bool(result.rowcount and result.rowcount > 0)
+
+
+def _scope_exists(prs_no: str, dept_code: str, br_code: Optional[str]) -> bool:
+    from app import zhr_auth_admin
+
+    branch = zhr_auth_admin._nullable_branch(br_code)
+    params: dict[str, Any] = {
+        "prs_no": prs_no,
+        "dept_code": dept_code,
+        "br_code": branch,
+    }
+    if branch is None:
+        where_branch = "za.BR_CODE IS NULL"
+    else:
+        where_branch = "LTRIM(RTRIM(CAST(za.BR_CODE AS NVARCHAR(100)))) = :br_code"
+
+    frame = execute_query(
+        f"""
+        SELECT TOP 1 1 AS ok
+        FROM dbo.ZHR_AUTHORIZATION za
+        WHERE LTRIM(RTRIM(CAST(za.PRS_NO AS NVARCHAR(50)))) = :prs_no
+          AND LTRIM(RTRIM(CAST(za.DEPT_CODE AS NVARCHAR(100)))) = :dept_code
+          AND {where_branch}
+        """,
+        params,
+    )
+    return not frame.empty
+
+
+def add_user_access(
+    prs_no: str,
+    dept_code: str,
+    br_code: Optional[str],
+    report_code: str,
+    changed_by: str,
+) -> dict[str, Any]:
+    """Grant data scope and report module access in one operation."""
+    from app import zhr_auth_admin
+
+    prs = str(prs_no or "").strip()
+    dept = str(dept_code or "").strip()
+    report = str(report_code or "").strip()
+    branch = zhr_auth_admin._nullable_branch(br_code)
+
+    if not prs:
+        raise ValueError("ต้องระบุรหัสพนักงาน (PRS_NO)")
+    if not dept:
+        raise ValueError("ต้องระบุแผนก (DEPT_CODE)")
+    if not report:
+        raise ValueError("ต้องระบุรายงาน (REPORT_CODE)")
+
+    scope_created = False
+    if not _scope_exists(prs, dept, branch):
+        zhr_auth_admin.create_authorization(
+            prs_no=prs,
+            dept_code=dept,
+            br_code=branch,
+            changed_by=changed_by,
+        )
+        scope_created = True
+
+    report_row = add_report_acl(prs, report)
+
+    return {
+        "ok": True,
+        "message": "เพิ่มสิทธิ์สำเร็จ (ทั้งขอบเขตและรายงาน)",
+        "prs_no": prs,
+        "dept_code": dept,
+        "br_code": branch,
+        "report_code": report,
+        "report_label": report_row.get("report_label") or REPORT_LABELS.get(report, report),
+        "scope_created": scope_created,
+    }

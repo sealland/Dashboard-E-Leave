@@ -20,7 +20,7 @@
         <a id="back-home" class="maintain-back" href="/">← ศูนย์รวม Dashboard</a>
         <p class="eyebrow">Administration</p>
         <h1>Maintain สิทธิ์เข้าถึง</h1>
-        <p class="subtitle">จัดการขอบเขตแผนก/สาขา และสิทธิ์โมดูลรายงาน · เฉพาะ DEPT=ALL และ BR=ALL</p>
+        <p class="subtitle">เพิ่มสิทธิ์ครั้งเดียว → บันทึกทั้งขอบเขตแผนก/สาขา และโมดูลรายงาน · เฉพาะ DEPT=ALL และ BR=ALL</p>
       </div>
       <div class="maintain-hero-aside">
         <div class="maintain-stat">
@@ -34,50 +34,49 @@
       </div>
     </header>
 
+    <section class="card maintain-panel maintain-unified-add">
+      <div class="maintain-panel-head">
+        <h2>เพิ่มสิทธิ์เข้าถึง</h2>
+        <p>บันทึกลง <code>ZHR_AUTHORIZATION</code> และ <code>ZHR_AUTHORIZATION_REPORT</code> พร้อมกัน</p>
+      </div>
+      <form id="access-form" class="maintain-form maintain-form--unified">
+        <label>
+          <span>รหัสพนักงาน (PRS_NO)</span>
+          <input id="access-prs" list="access-prs-list" required placeholder="เช่น 67050023" />
+          <datalist id="access-prs-list"></datalist>
+        </label>
+        <label>
+          <span>แผนก (DEPT_CODE)</span>
+          <input id="access-dept" list="access-dept-list" required placeholder="ALL หรือรหัสแผนก" />
+          <datalist id="access-dept-list"></datalist>
+        </label>
+        <label>
+          <span>สาขา (BR_CODE)</span>
+          <input id="access-br" list="access-br-list" placeholder="ALL / ว่าง / รหัสสาขา" />
+          <datalist id="access-br-list"></datalist>
+        </label>
+        <label>
+          <span>รายงาน (REPORT_CODE)</span>
+          <select id="access-report" required></select>
+        </label>
+        <button type="submit" class="btn btn-primary maintain-submit maintain-submit--inline">เพิ่มสิทธิ์</button>
+      </form>
+      <p id="access-status" class="maintain-status" hidden></p>
+      <ul class="maintain-unified-notes">
+        <li><code>DEPT=ALL</code> + <code>BR=ALL</code> = เห็นข้อมูลทุกแผนก/สาขา</li>
+        <li><code>REPORT=ALL</code> = เปิดทุกโมดูลรายงาน</li>
+        <li>ถ้ามีขอบเขตหรือรายงานเดิมอยู่แล้ว จะไม่สร้างซ้ำ</li>
+      </ul>
+    </section>
+
     <nav class="maintain-tabs" aria-label="ประเภทสิทธิ์">
       <button type="button" class="maintain-tab is-active" data-tab="scope">ขอบเขตแผนก / สาขา</button>
       <button type="button" class="maintain-tab" data-tab="reports">สิทธิ์โมดูลรายงาน</button>
     </nav>
 
     <section id="tab-scope" class="maintain-tab-panel">
-      <div class="maintain-grid">
-        <aside class="maintain-side">
-          <section class="card maintain-panel">
-            <div class="maintain-panel-head">
-              <h2>เพิ่มสิทธิ์ ZHR_AUTHORIZATION</h2>
-              <p>PRS_NO + DEPT_CODE + BR_CODE</p>
-            </div>
-            <form id="scope-form" class="maintain-form">
-              <label>
-                <span>รหัสพนักงาน</span>
-                <input id="scope-prs" list="scope-prs-list" required placeholder="เช่น 57110047" />
-                <datalist id="scope-prs-list"></datalist>
-              </label>
-              <label>
-                <span>แผนก (DEPT_CODE)</span>
-                <input id="scope-dept" list="scope-dept-list" required placeholder="ALL หรือรหัสแผนก" />
-                <datalist id="scope-dept-list"></datalist>
-              </label>
-              <label>
-                <span>สาขา (BR_CODE)</span>
-                <input id="scope-br" list="scope-br-list" placeholder="ALL / ว่าง / รหัสสาขา" />
-                <datalist id="scope-br-list"></datalist>
-              </label>
-              <button type="submit" class="btn btn-primary maintain-submit">เพิ่มสิทธิ์</button>
-            </form>
-            <p id="scope-status" class="maintain-status" hidden></p>
-          </section>
-          <section class="card maintain-panel maintain-rules">
-            <h2>หมายเหตุ</h2>
-            <ul>
-              <li><code>DEPT_CODE=ALL</code> = ทุกแผนก</li>
-              <li><code>BR_CODE=ALL</code> = ทุกสาขา</li>
-              <li>หนึ่งคนมีได้หลายแถว (หลายแผนก/สาขา)</li>
-              <li>ย้ายมาจากระบบ HRreportMaintain</li>
-            </ul>
-          </section>
-        </aside>
-        <section class="card maintain-panel maintain-list-panel">
+      <div class="maintain-grid maintain-grid--list-only">
+        <section class="card maintain-panel maintain-list-panel maintain-list-panel--full">
           <div class="maintain-table-head">
             <div>
               <h2>รายการขอบเขต</h2>
@@ -107,7 +106,7 @@
         </article>
         <article class="maintain-legend-card maintain-legend-card--hidden">
           <span class="maintain-pill maintain-pill--admin">emc-report</span>
-          <div><strong>HR Monthly Performance</strong><p>เฉพาะ ALL เห็นเมนู</p></div>
+          <div><strong>HR Monthly Performance</strong><p>ต้องระบุ emc-report หรือ ALL ใน REPORT</p></div>
         </article>
         <article class="maintain-legend-card">
           <span class="maintain-pill maintain-pill--all">ALL</span>
@@ -115,37 +114,8 @@
         </article>
       </section>
 
-      <div class="maintain-grid">
-        <aside class="maintain-side">
-          <section class="card maintain-panel">
-            <div class="maintain-panel-head">
-              <h2>เพิ่มสิทธิ์รายงาน</h2>
-              <p>ตาราง ZHR_AUTHORIZATION_REPORT</p>
-            </div>
-            <form id="acl-form" class="maintain-form">
-              <label>
-                <span>รหัสพนักงาน (PRS_NO)</span>
-                <input id="prs-input" list="prs-list" name="prs_no" autocomplete="off" required placeholder="เช่น 57110047" />
-                <datalist id="prs-list"></datalist>
-              </label>
-              <label>
-                <span>รายงาน</span>
-                <select id="report-select" name="report_code" required></select>
-              </label>
-              <button type="submit" class="btn btn-primary maintain-submit">เพิ่มสิทธิ์</button>
-            </form>
-            <p id="form-status" class="maintain-status" hidden></p>
-          </section>
-          <section class="card maintain-panel maintain-rules">
-            <h2>กฎการทำงาน</h2>
-            <ul>
-              <li>ยัง<strong>ไม่มีแถว</strong> → เห็นทุกรายงาน</li>
-              <li><strong>มีแถวแล้ว</strong> → เห็นเฉพาะที่ระบุ</li>
-              <li>ใส่ <code>ALL</code> → เปิดทุกโมดูลรวม EMC</li>
-            </ul>
-          </section>
-        </aside>
-        <section class="card maintain-panel maintain-list-panel">
+      <div class="maintain-grid maintain-grid--list-only">
+        <section class="card maintain-panel maintain-list-panel maintain-list-panel--full">
           <div class="maintain-table-head">
             <div>
               <h2>รายการสิทธิ์รายงาน</h2>
@@ -164,6 +134,6 @@
     </section>
   </div>
 
-  <script src="/static/maintain.js?v=4"></script>
+  <script src="/static/maintain.js?v=5"></script>
 </body>
 </html>

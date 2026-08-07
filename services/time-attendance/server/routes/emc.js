@@ -607,8 +607,18 @@ router.get("/emc/labor-per-ton", async (req, res) => {
       ),
     );
     withSignal.sort((a, b) => b.ytdLabor - a.ytdLabor || a.code.localeCompare(b.code, "th"));
-    const locationOmitted = Math.max(0, withSignal.length - 8);
-    const locationSeries = withSignal.slice(0, 8).map(({ ytdLabor, ytdTon, ...rest }) => rest);
+
+    // Keep Top 8 by YTD labor, but always retain OCP/ZUBB when they have PAY_DEPT data
+    const preferredLocationCodes = ["OCP", "ZUBB"];
+    let locationPicked = withSignal.slice(0, 8);
+    for (const preferred of preferredLocationCodes) {
+      const found = withSignal.find((s) => String(s.code).toUpperCase() === preferred);
+      if (!found) continue;
+      if (locationPicked.some((s) => String(s.code).toUpperCase() === preferred)) continue;
+      locationPicked = [...locationPicked.slice(0, Math.max(0, 7)), found];
+    }
+    const locationOmitted = Math.max(0, withSignal.length - locationPicked.length);
+    const locationSeries = locationPicked.map(({ ytdLabor, ytdTon, ...rest }) => rest);
 
     res.json({
       meta: {
@@ -618,6 +628,7 @@ router.get("/emc/labor-per-ton", async (req, res) => {
         formula: "(SALARY+OT)/PP_TON",
         unit: "THB/ton",
         locationOmitted,
+        locationBuild: "ocp-zubb-included-v9",
         auth,
         source: {
           branchPay: "ZHR_PAY_COM",

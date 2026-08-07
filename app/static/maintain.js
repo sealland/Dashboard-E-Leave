@@ -37,7 +37,7 @@
     if (Array.isArray(payload.detail) && payload.detail[0]?.msg) {
       return payload.detail.map((item) => item.msg).join(", ");
     }
-    return payload.error || "เกิดข้อผิดพลาด";
+    return payload.error || payload.message || "เกิดข้อผิดพลาด";
   }
 
   function setStatus(el, message, ok) {
@@ -55,24 +55,18 @@
     tabs: document.querySelectorAll(".maintain-tab"),
     tabScope: document.getElementById("tab-scope"),
     tabReports: document.getElementById("tab-reports"),
-    // reports
-    form: document.getElementById("acl-form"),
-    prsInput: document.getElementById("prs-input"),
-    prsList: document.getElementById("prs-list"),
-    reportSelect: document.getElementById("report-select"),
-    formStatus: document.getElementById("form-status"),
+    accessForm: document.getElementById("access-form"),
+    accessPrs: document.getElementById("access-prs"),
+    accessPrsList: document.getElementById("access-prs-list"),
+    accessDept: document.getElementById("access-dept"),
+    accessDeptList: document.getElementById("access-dept-list"),
+    accessBr: document.getElementById("access-br"),
+    accessBrList: document.getElementById("access-br-list"),
+    accessReport: document.getElementById("access-report"),
+    accessStatus: document.getElementById("access-status"),
     filterPrs: document.getElementById("filter-prs"),
     list: document.getElementById("acl-list"),
     listSummary: document.getElementById("list-summary"),
-    // scope
-    scopeForm: document.getElementById("scope-form"),
-    scopePrs: document.getElementById("scope-prs"),
-    scopePrsList: document.getElementById("scope-prs-list"),
-    scopeDept: document.getElementById("scope-dept"),
-    scopeDeptList: document.getElementById("scope-dept-list"),
-    scopeBr: document.getElementById("scope-br"),
-    scopeBrList: document.getElementById("scope-br-list"),
-    scopeStatus: document.getElementById("scope-status"),
     scopeFilter: document.getElementById("scope-filter"),
     scopeList: document.getElementById("scope-list"),
     scopeSummary: document.getElementById("scope-summary"),
@@ -98,7 +92,6 @@
     else renderReports();
   }
 
-  // —— Report ACL ——
   function renderReports() {
     const filter = (els.filterPrs?.value || "").trim().toLowerCase();
     const filtered = filter
@@ -154,10 +147,10 @@
           );
           const payload = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(detailMessage(payload));
-          setStatus(els.formStatus, "ลบสำเร็จ", true);
+          setStatus(els.accessStatus, "ลบสิทธิ์รายงานสำเร็จ", true);
           await loadReports();
         } catch (error) {
-          setStatus(els.formStatus, error.message, false);
+          setStatus(els.accessStatus, error.message, false);
         }
       });
     });
@@ -167,12 +160,10 @@
     const res = await fetch(withC("/api/admin/report-acl/meta"));
     const payload = await res.json();
     if (!res.ok) throw new Error(detailMessage(payload));
-    els.reportSelect.innerHTML = (payload.reports || [])
+    const options = (payload.reports || [])
       .map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.label)}</option>`)
       .join("");
-    els.prsList.innerHTML = (payload.users || [])
-      .map((user) => `<option value="${escapeHtml(user.prs_no)}"></option>`)
-      .join("");
+    if (els.accessReport) els.accessReport.innerHTML = options;
   }
 
   async function loadReports() {
@@ -183,7 +174,6 @@
     if (activeTab === "reports") renderReports();
   }
 
-  // —— Scope ZHR_AUTHORIZATION ——
   function renderScope() {
     const filter = (els.scopeFilter?.value || "").trim().toLowerCase();
     const filtered = filter
@@ -248,16 +238,16 @@
           );
           const payload = await res.json().catch(() => ({}));
           if (!res.ok || payload.ok === false) throw new Error(detailMessage(payload));
-          setStatus(els.scopeStatus, "ลบสำเร็จ", true);
+          setStatus(els.accessStatus, "ลบขอบเขตสำเร็จ", true);
           await loadScope();
         } catch (error) {
-          setStatus(els.scopeStatus, error.message, false);
+          setStatus(els.accessStatus, error.message, false);
         }
       });
     });
   }
 
-  async function loadScopeMeta() {
+  async function loadAccessMeta() {
     const [empRes, deptRes, brRes] = await Promise.all([
       fetch(withC("/api/admin/zhr-auth/employees")),
       fetch(withC("/api/admin/zhr-auth/departments")),
@@ -266,37 +256,34 @@
     const employees = await empRes.json();
     const departments = await deptRes.json();
     const branches = await brRes.json();
-    if (els.scopePrsList) {
-      els.scopePrsList.innerHTML = (employees.data || employees.rows || [])
-        .slice(0, 500)
-        .map((e) => {
-          const code = e.prsNo || e.PRS_NO || e.prs_no || "";
+    const employeeOptions = (employees.data || employees.rows || [])
+      .slice(0, 500)
+      .map((e) => {
+        const code = e.prsNo || e.PRS_NO || e.prs_no || "";
+        return code ? `<option value="${escapeHtml(code)}"></option>` : "";
+      })
+      .join("");
+    if (els.accessPrsList) els.accessPrsList.innerHTML = employeeOptions;
+
+    const deptOptions =
+      `<option value="ALL"></option>` +
+      (departments.data || [])
+        .map((d) => {
+          const code = d.code || d.deptCode || d.DEPT_CODE || "";
           return code ? `<option value="${escapeHtml(code)}"></option>` : "";
         })
         .join("");
-    }
-    if (els.scopeDeptList) {
-      const depts = departments.data || [];
-      els.scopeDeptList.innerHTML =
-        `<option value="ALL"></option>` +
-        depts
-          .map((d) => {
-            const code = d.code || d.deptCode || d.DEPT_CODE || "";
-            return code ? `<option value="${escapeHtml(code)}"></option>` : "";
-          })
-          .join("");
-    }
-    if (els.scopeBrList) {
-      const brs = branches.data || [];
-      els.scopeBrList.innerHTML =
-        `<option value="ALL"></option>` +
-        brs
-          .map((b) => {
-            const code = b.code || b.brCode || b.BR_CODE || "";
-            return code ? `<option value="${escapeHtml(code)}"></option>` : "";
-          })
-          .join("");
-    }
+    if (els.accessDeptList) els.accessDeptList.innerHTML = deptOptions;
+
+    const branchOptions =
+      `<option value="ALL"></option>` +
+      (branches.data || [])
+        .map((b) => {
+          const code = b.code || b.brCode || b.BR_CODE || "";
+          return code ? `<option value="${escapeHtml(code)}"></option>` : "";
+        })
+        .join("");
+    if (els.accessBrList) els.accessBrList.innerHTML = branchOptions;
   }
 
   async function loadScope() {
@@ -312,7 +299,7 @@
     if (els.brand && c) els.brand.setAttribute("href", `/?c=${encodeURIComponent(c)}`);
     if (els.backHome) els.backHome.setAttribute("href", c ? `/?c=${encodeURIComponent(c)}` : "/");
     if (!c) {
-      setStatus(els.scopeStatus, "ต้องระบุ ?c=PRS_NO และต้องเป็นสิทธิ์ DEPT=ALL · BR=ALL", false);
+      setStatus(els.accessStatus, "ต้องระบุ ?c=PRS_NO และต้องเป็นสิทธิ์ DEPT=ALL · BR=ALL", false);
       return;
     }
 
@@ -321,55 +308,41 @@
     });
 
     try {
-      await Promise.all([loadScopeMeta(), loadScope(), loadReportOptions(), loadReports()]);
+      await Promise.all([loadAccessMeta(), loadScope(), loadReportOptions(), loadReports()]);
       switchTab("scope");
     } catch (error) {
-      setStatus(els.scopeStatus, error.message, false);
+      setStatus(els.accessStatus, error.message, false);
       if (els.scopeList) {
         els.scopeList.innerHTML = `<div class="maintain-empty">${escapeHtml(error.message)}</div>`;
       }
     }
 
-    els.form?.addEventListener("submit", async (event) => {
+    els.accessForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const prs_no = (els.prsInput?.value || "").trim();
-      const report_code = (els.reportSelect?.value || "").trim();
+      const prsNo = (els.accessPrs?.value || "").trim();
+      const deptCode = (els.accessDept?.value || "").trim();
+      const brCode = (els.accessBr?.value || "").trim() || null;
+      const reportCode = (els.accessReport?.value || "").trim();
       try {
-        const res = await fetch(withC("/api/admin/report-acl"), {
+        const res = await fetch(withC("/api/admin/access"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prs_no, report_code }),
-        });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(detailMessage(payload));
-        setStatus(els.formStatus, `เพิ่ม ${prs_no} → ${report_code} สำเร็จ`, true);
-        els.prsInput.value = "";
-        await loadReports();
-      } catch (error) {
-        setStatus(els.formStatus, error.message, false);
-      }
-    });
-
-    els.scopeForm?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const prsNo = (els.scopePrs?.value || "").trim();
-      const deptCode = (els.scopeDept?.value || "").trim();
-      const brCode = (els.scopeBr?.value || "").trim() || null;
-      try {
-        const res = await fetch(withC("/api/admin/zhr-auth/authorizations"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prsNo, deptCode, brCode }),
+          body: JSON.stringify({ prsNo, deptCode, brCode, reportCode }),
         });
         const payload = await res.json().catch(() => ({}));
         if (!res.ok || payload.ok === false) throw new Error(detailMessage(payload));
-        setStatus(els.scopeStatus, `เพิ่ม ${prsNo} · ${deptCode} · ${brCode || "-"} สำเร็จ`, true);
-        els.scopePrs.value = "";
-        els.scopeDept.value = "";
-        els.scopeBr.value = "";
-        await loadScope();
+        const scopeNote = payload.scope_created ? " (สร้างขอบเขตใหม่)" : " (มีขอบเขตเดิมแล้ว)";
+        setStatus(
+          els.accessStatus,
+          `เพิ่ม ${prsNo} · ${deptCode} · ${brCode || "-"} → ${reportCode} สำเร็จ${scopeNote}`,
+          true,
+        );
+        els.accessPrs.value = "";
+        els.accessDept.value = "";
+        els.accessBr.value = "";
+        await Promise.all([loadScope(), loadReports()]);
       } catch (error) {
-        setStatus(els.scopeStatus, error.message, false);
+        setStatus(els.accessStatus, error.message, false);
       }
     });
 
